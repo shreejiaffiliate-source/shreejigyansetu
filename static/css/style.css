@@ -727,3 +727,70 @@ footer .navbar-brand span {
     box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
   }
 }
+
+
+/* --- TEACHER DASHBOARD & MODAL DARK MODE FIX --- */
+
+/* Dono attributes ke liye support (.co block karne ke liye regex jaisa logic) */
+[data-theme="dark"] .form-control, 
+[data-bs-theme="dark"] .form-control,
+[data-theme="dark"] .form-select,
+[data-bs-theme="dark"] .form-select {
+    background-color: #1e1e1e !important; /* Card background ke sath match */
+    color: #e0e0e0 !important;           /* Light text visibility */
+    border: 1px solid #444 !important;
+}
+
+/* 1. Modal (Queries Reply Box) Fix */
+[data-theme="dark"] .modal-content,
+[data-bs-theme="dark"] .modal-content {
+    background-color: #1e1e1e !important;
+    color: #e0e0e0 !important;
+    border: 1px solid #333;
+}
+
+/* Typing area in Modal (Important for Query Reply) */
+[data-theme="dark"] textarea[name="answer"],
+[data-bs-theme="dark"] textarea[name="answer"] {
+    background-color: #121212 !important;
+    color: #ffffff !important;
+    caret-color: white; /* Cursor visibility */
+}
+
+/* 2. Textarea Placeholder Fix */
+[data-theme="dark"] textarea::placeholder,
+[data-bs-theme="dark"] textarea::placeholder {
+    color: #888 !important;
+}
+
+/* 3. Labels visibility in Dashboard forms */
+[data-theme="dark"] label,
+[data-bs-theme="dark"] label,
+[data-theme="dark"] .form-label,
+[data-bs-theme="dark"] .form-label {
+    color: #ffffff !important;
+    opacity: 0.9;
+}
+
+/* 4. Dropdown (Category/Difficulty) Options Fix */
+[data-theme="dark"] select option,
+[data-bs-theme="dark"] select option {
+    background-color: #1e1e1e;
+    color: #ffffff;
+}
+
+/* 5. Fixed spacing for Table rows in Queries */
+.table td, .table th {
+    vertical-align: middle;
+}
+
+.pagination .page-link {
+    transition: all 0.3s ease;
+    font-weight: 600;
+}
+
+.pagination .page-link:hover {
+    background: var(--primary-blue) !important;
+    color: white !important;
+    transform: translateY(-2px);
+}

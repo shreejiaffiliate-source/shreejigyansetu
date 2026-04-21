@@ -11,7 +11,7 @@ from .utils import send_push_notification
 
 class MasterCategory(models.Model):
     title = models.CharField(max_length=100)
-    slug = models.SlugField(unique=True, blank=True)
+    slug = models.SlugField(max_length=150,unique=True, blank=True)
     icon_class = models.CharField(max_length=50, default="fa-book")
     order = models.PositiveIntegerField(default=0)
 
@@ -28,7 +28,7 @@ class Course(models.Model):
     LEVEL_CHOICES = [('Beginner', 'Beginner'), ('Intermediate', 'Intermediate'), ('Advanced', 'Advanced')]
     master_category = models.ForeignKey(MasterCategory, on_delete=models.CASCADE, related_name='courses')
     title = models.CharField(max_length=200)
-    slug = models.SlugField(unique=True, blank=True)
+    slug = models.SlugField(max_length=255,unique=True, blank=True)
     thumbnail = models.ImageField(upload_to='course_thumbnails/')
     description = models.TextField()
     is_active = models.BooleanField(default=True)
@@ -396,14 +396,14 @@ class Notification(models.Model):
 from django.contrib.auth import get_user_model
 User = get_user_model()
 
-@receiver(post_save, sender=User)
-def create_user_profile(sender, instance, created, **kwargs):
-    if created:
-        Profile.objects.get_or_create(user=instance)
+# @receiver(post_save, sender=User)
+# def create_user_profile(sender, instance, created, **kwargs):
+#     if created:
+#         Profile.objects.get_or_create(user=instance)
 
-@receiver(post_save, sender=User)
-def save_user_profile(sender, instance, **kwargs):
-    if hasattr(instance, 'profile'):
-        instance.profile.save()
+# @receiver(post_save, sender=User)
+# def save_user_profile(sender, instance, **kwargs):
+#     if hasattr(instance, 'profile'):
+#         instance.profile.save()
 
     

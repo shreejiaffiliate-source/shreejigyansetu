@@ -9,11 +9,10 @@
     <div class="d-flex flex-column flex-md-row justify-content-between align-items-start mb-5 gap-3">
       <div class="text-start">
         <h1 class="fw-bold mb-1" style="color: var(--text-dark);">Your Published Courses</h1>
-        <p class="text-muted mb-0">Review and manage your teaching catalog across all categories.</p>
+        <p style="color: var(--text-muted-adaptive);">Review and manage your teaching catalog across all categories.</p>
       </div>
-
       <div class="d-flex gap-3 align-items-center">
-        <a href="{% url 'teacher_dashboard' %}" class="btn btn-outline-secondary btn-sm rounded-pill px-4 shadow-sm bg-white btn-dash-nav"><i class="fas fa-arrow-left me-2"></i>Back to Dashboard</a>
+        <a href="{% url 'teacher_dashboard' %}" class="btn btn-outline-secondary btn-sm rounded-pill px-4 shadow-sm btn-dash-nav" style="background: var(--card-bg); color: var(--text-dark); border-color: var(--border-color);"><i class="fas fa-arrow-left me-2"></i>Back to Dashboard</a>
         <a href="{% url 'upload_course' %}" class="btn btn-primary rounded-pill px-4 shadow-sm fw-bold"><i class="fas fa-plus-circle me-2"></i>New Course</a>
       </div>
     </div>
@@ -21,12 +20,14 @@
     {% for category in categories %}
       {% if category.courses.all %}
         <div class="category-group mb-5">
-          <div class="d-flex align-items-center mb-4 pb-2 border-bottom">
-            <div class="category-icon-circle me-3">
+          <div class="d-flex align-items-center mb-4 pb-2 border-bottom" style="border-color: var(--border-color) !important;">
+            <div class="category-icon-circle me-3" style="color: var(--primary-blue);">
               <i class="fas {{ category.icon_class }} fa-lg"></i>
             </div>
             <h4 class="fw-bold mb-0" style="color: var(--text-dark);">{{ category.title }}</h4>
-            <span class="badge bg-light text-muted border rounded-pill ms-3">{{ category.courses.count }} Courses</span>
+            <span class="badge rounded-pill ms-3" style="background: var(--bg-light); color: var(--text-dark); border: 1px solid var(--border-color);">
+                {{ category.courses.count }} Courses
+            </span>
           </div>
 
           <div class="row g-4">
@@ -34,7 +35,9 @@
               <div class="col-sm-6 col-md-4 col-lg-3">
                 <div class="position-relative h-100">
                   <div style="position: absolute; top: 12px; right: 12px; z-index: 10;">
-                    <a href="{% url 'course_detail_edit' course.slug %}" class="btn btn-sm btn-light rounded-circle shadow border" title="Quick Edit Content"><i class="fas fa-pencil-alt text-primary"></i></a>
+                    <a href="{% url 'course_detail_edit' course.slug %}" class="btn btn-sm btn-light rounded-circle shadow border" title="Quick Edit Content">
+                        <i class="fas fa-pencil-alt text-primary"></i>
+                    </a>
                   </div>
 
                   {% include 'includes/course_card.html' with course=course %}
@@ -45,11 +48,11 @@
         </div>
       {% endif %}
     {% empty %}
-      <div class="card border-0 shadow-sm text-center py-5" style="border-radius: 20px;">
+      <div class="card border-0 shadow-sm text-center py-5" style="border-radius: 20px; background: var(--card-bg);">
         <div class="card-body">
-          <i class="fas fa-book-open fa-4x text-muted opacity-25 mb-3"></i>
-          <h4 class="text-muted fw-bold">Your catalog is empty.</h4>
-          <p class="text-muted small">Once you upload courses and they are approved, they will appear here grouped by category.</p>
+          <i class="fas fa-book-open fa-4x mb-3 opacity-25" style="color: var(--text-muted-adaptive);"></i>
+          <h4 class="fw-bold" style="color: var(--text-dark);">Your catalog is empty.</h4>
+          <p style="color: var(--text-muted-adaptive);">Once you upload courses and they are approved, they will appear here.</p>
           <a href="{% url 'upload_course' %}" class="btn btn-primary rounded-pill px-4 mt-3">Upload Your First Course</a>
         </div>
       </div>

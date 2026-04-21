@@ -213,28 +213,37 @@
     </div>
   </div>
 
-  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
-  <script>
-    var options = {
-      key: '{{ razorpay_merchant_key }}',
-      amount: '{{ amount }}',
-      currency: 'INR',
-      name: 'Shreeji GyanSetu',
-      description: '{{ course.title }}',
-      order_id: '{{ razorpay_order_id }}',
-      handler: function (response) {
-        window.location.href = '/verify-payment/?payment_id=' + response.razorpay_payment_id + '&course_id={{ course.id }}'
-      },
-      prefill: {
-        name: '{{ user.get_full_name }}',
-        email: '{{ user.email }}'
-      },
-      theme: { color: '#00bcd4' }
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+<script>
+  var options = {
+    "key": "{{ razorpay_merchant_key }}",
+    "amount": "{{ amount }}",
+    "currency": "INR",
+    "name": "Shreeji GyanSetu",
+    "description": "{{ course.title }}",
+    "order_id": "{{ razorpay_order_id }}",
+    "handler": function (response) {
+      window.location.href = '/verify-payment/?payment_id=' + response.razorpay_payment_id + '&course_id={{ course.id }}';
+    },
+    "prefill": {
+      "name": "{{ user.get_full_name }}",
+      "email": "{{ user.email }}",
+      "method": "upi",
+      "vpa": "success@razorpay" // 👈 YE JAADU HAI: Isse box apne aap khul jayega
+    },
+    "theme": { "color": "#00bcd4" },
+    "modal": {
+        "ondismiss": function(){
+            location.reload();
+        }
     }
-    var rzp1 = new Razorpay(options)
-    document.getElementById('rzp-button1').onclick = function (e) {
-      rzp1.open()
-      e.preventDefault()
-    }
-  </script>
+  };
+
+  var rzp1 = new Razorpay(options);
+
+  document.getElementById('rzp-button1').onclick = function (e) {
+    rzp1.open();
+    e.preventDefault();
+  }
+</script>
 {% endblock %}

@@ -3,46 +3,57 @@ from firebase_admin import credentials, messaging
 import os
 from django.conf import settings
 
-def send_push_notification(fcm_token, title, body, lesson_id, data=None):
-    # --- JWT FIX: FORCE RE-INITIALIZATION ---
-    try:
-        app = firebase_admin.get_app()
-        firebase_admin.delete_app(app)
-    except ValueError:
-        pass 
+# ✅ Initialize Firebase ONLY ONCE (Global Scope)
+path_to_json = os.path.join(settings.BASE_DIR, 'firebase-credentials.json')
 
-    path_to_json = os.path.join(settings.BASE_DIR, 'firebase-credentials.json')
-    
-    if not os.path.exists(path_to_json):
-        print(f"❌ ERROR: {path_to_json} missing!")
-        return False
-
-    try:
+if not firebase_admin._apps:
+    if os.path.exists(path_to_json):
         cred = credentials.Certificate(path_to_json)
         firebase_admin.initialize_app(cred)
-        
-        payload_data = data or {}
-        # Ensure lesson_id is always there
-        payload_data.update({
-            "title": str(title),
-            "body": str(body),
-            "click_action": "FLUTTER_NOTIFICATION_CLICK",
-            "lesson_id": str(lesson_id), 
-        })
+        print("Firebase Admin Initialized Successfully")
+    else:
+        print(f"❌ ERROR: {path_to_json} missing!")
 
-        # ✅ Loop through data to ensure all values are STRINGS (FCM requirement)
+def send_push_notification(fcm_token, title, body, lesson_id, data=None):
+    try:
+        # Check if token exists
+        if not fcm_token:
+            print("⚠️ FCM Token is empty, skipping...")
+            return False
+
+        # Prepare Data Payload (FCM requires values to be STRINGS)
+        payload_data = data or {}
+        payload_data.update({
+            "click_action": "FLUTTER_NOTIFICATION_CLICK",
+            "lesson_id": str(lesson_id),
+            "status": "new_reply" 
+        })
+        
+        # Clean data to strings
         final_data = {k: str(v) for k, v in payload_data.items()}
 
         message = messaging.Message(
-            notification=messaging.Notification(title=str(title), body=str(body)),
-            data=final_data, # Use the cleaned string data
+            notification=messaging.Notification(
+                title=str(title),
+                body=str(body),
+            ),
+            data=final_data,
             token=str(fcm_token),
             android=messaging.AndroidConfig(
-                priority='high',
+                priority='high', 
                 notification=messaging.AndroidNotification(
                     channel_id='high_importance_channel',
                     click_action='FLUTTER_NOTIFICATION_CLICK',
                     default_sound=True,
+                    # ✅ FIX: 'notification_priority' hata diya hai, 
+                    # 'priority' upar 'high' set hai toh pop-up apne aap aayega.
+                ),
+            ),
+
+            # iOS ke liye bhi support add kar dete hain safe side
+            apns=messaging.APNSConfig(
+                payload=messaging.APNSPayload(
+                    aps=messaging.Aps(badge=1, sound='default'),
                 ),
             ),
         )
@@ -51,6 +62,11 @@ def send_push_notification(fcm_token, title, body, lesson_id, data=None):
         print(f'✅ Firebase Success: {response}')
         return True
 
-    except Exception as e:
-        print(f'❌ Firebase Sending Error: {e}')
-        return False
+    except messaging.ApiCallError as e:
+            # Agar token mil hi nahi raha (Entity not found)
+            if "not-found" in str(e).lower() or "404" in str(e):
+                print(f"⚠️ Token expire ho gaya hai! User ko naya login karna padega. Error: {e}")
+                # Optional: Database se ye galat token hata do
+            else:
+                print(f"❌ Firebase API Error: {e}")
+            return False

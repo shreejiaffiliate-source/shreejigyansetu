@@ -6,20 +6,25 @@
 {% endblock %}
 
 {% block dashboard_content %}
-  <div class="container-fluid">
+  <div class="container-fluid" style="min-height: 85vh; padding-bottom: 50px;">
+    
     <div class="d-flex justify-content-between align-items-center mb-4">
       <div>
         <h3 class="fw-bold mb-0" style="color: var(--text-dark);">Platform Course Inventory</h3>
-        <p class="text-muted small mb-0">Overview and management of all published courses on GyanSetu.</p>
+        <p class="small mb-0" style="color: var(--text-muted-adaptive);">Overview and management of all published courses on GyanSetu.</p>
       </div>
-      <a href="{% url 'admin_dashboard' %}" class="btn btn-outline-secondary btn-sm rounded-pill px-4 shadow-sm bg-white btn-dash-nav"><i class="fas fa-arrow-left me-2"></i>Back to Dashboard</a>
+      <a href="{% url 'admin_dashboard' %}" class="btn btn-outline-secondary btn-sm rounded-pill px-4 shadow-sm bg-white btn-dash-nav">
+        <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+      </a>
     </div>
 
-    <div class="card border-0 shadow-sm" style="background: var(--card-bg); border-radius: 15px;">
-      <div class="card-header bg-transparent py-3 border-bottom d-flex justify-content-between align-items-center">
+    <div class="card border-0 shadow-sm mb-4" style="background: var(--card-bg); border-radius: 15px; overflow: hidden;">
+      <div class="card-header bg-transparent py-3 border-bottom d-flex justify-content-between align-items-center" style="border-color: var(--border-color) !important;">
         <h5 class="mb-0 fw-bold" style="color: var(--text-dark);"><i class="fas fa-chalkboard-teacher me-2 text-success"></i>All Platform Courses</h5>
         <div class="d-flex align-items-center gap-3">
-          <span class="badge bg-light text-dark border d-none d-md-inline-block">{{ all_courses.count }} Total</span>
+          <span class="badge rounded-pill border" style="background: var(--bg-light); color: var(--text-dark);">
+            {{ all_courses.paginator.count }} Total
+          </span>
           <a href="{% url 'upload_course' %}" class="btn btn-sm btn-outline-primary rounded-pill px-3"><i class="fas fa-plus me-1"></i> Add New</a>
         </div>
       </div>
@@ -27,7 +32,7 @@
       <div class="table-responsive">
         <table class="table table-hover align-middle mb-0">
           <thead class="bg-light">
-            <tr class="text-muted small text-uppercase">
+            <tr class="small text-uppercase" style="color: var(--text-muted-adaptive);">
               <th class="ps-4">Course</th>
               <th>Current Teacher</th>
               <th>Students</th>
@@ -36,43 +41,35 @@
           </thead>
           <tbody>
             {% for course in all_courses %}
-              <tr>
+              <tr style="border-color: var(--border-color);">
                 <td class="ps-4">
                   <div class="fw-bold" style="color: var(--text-dark);">{{ course.title }}</div>
-                  <small class="text-muted">{{ course.master_category }}</small>
+                  <small style="color: var(--text-muted-adaptive);">{{ course.master_category }}</small>
                 </td>
                 <td>
-                  <span class="badge bg-info text-dark">{{ course.teacher.get_full_name|default:course.teacher.username }}</span>
+                  <span class="badge bg-info text-dark shadow-sm">{{ course.teacher.get_full_name|default:course.teacher.username }}</span>
                 </td>
                 <td>
-                  <div class="d-flex align-items-center text-muted">
+                  <div class="d-flex align-items-center" style="color: var(--text-muted-adaptive);">
                     <i class="fas fa-users me-2 small"></i>
                     <span>{{ course.num_students }}</span>
                   </div>
                 </td>
                 <td class="text-end pe-4">
                   <div class="dropdown">
-                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle rounded-pill px-3 shadow-sm" data-bs-toggle="dropdown">Manage</button>
-                    <ul class="dropdown-menu shadow border-0">
-                      <li>
-                        <a class="dropdown-item" href="{% url 'course_detail_edit' course.slug %}"><i class="fas fa-edit me-2 text-primary"></i>Edit Content</a>
-                      </li>
-                      <li>
-                        <a class="dropdown-item" href="{% url 'manage_curriculum' course.slug %}"><i class="fas fa-list me-2 text-success"></i>Curriculum</a>
-                      </li>
-                      <li>
-                        <hr class="dropdown-divider" />
-                      </li>
-                      <li>
-                        <a class="dropdown-item text-danger" href="#"><i class="fas fa-trash-alt me-2"></i>Delete Course</a>
-                      </li>
+                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle rounded-pill px-3 shadow-sm" data-bs-toggle="dropdown" style="color: var(--text-dark); border-color: var(--border-color);">Manage</button>
+                    <ul class="dropdown-menu shadow border-0 mt-2" style="background: var(--card-bg); border: 1px solid var(--border-color);">
+                      <li><a class="dropdown-item py-2" style="color: var(--text-dark);" href="{% url 'course_detail_edit' course.slug %}"><i class="fas fa-edit me-2 text-primary"></i>Edit Content</a></li>
+                      <li><a class="dropdown-item py-2" style="color: var(--text-dark);" href="{% url 'manage_curriculum' course.slug %}"><i class="fas fa-list me-2 text-success"></i>Curriculum</a></li>
+                      <li><hr class="dropdown-divider" style="background-color: var(--border-color);"></li>
+                      <li><a class="dropdown-item py-2 text-danger" href="#"><i class="fas fa-trash-alt me-2"></i>Delete Course</a></li>
                     </ul>
                   </div>
                 </td>
               </tr>
             {% empty %}
               <tr>
-                <td colspan="4" class="text-center py-5 text-muted">
+                <td colspan="4" class="text-center py-5" style="color: var(--text-muted-adaptive);">
                   <i class="fas fa-folder-open fa-3x mb-3 opacity-25"></i>
                   <p class="fw-bold">No courses found on the platform.</p>
                 </td>
@@ -81,6 +78,49 @@
           </tbody>
         </table>
       </div>
+
+      {% if all_courses.has_other_pages %}
+      <div class="card-footer bg-transparent border-0 py-4">
+        <nav>
+          <ul class="pagination justify-content-center mb-0 gap-2">
+            {% if all_courses.has_previous %}
+              <li class="page-item">
+                <a class="page-link rounded-circle border-0 shadow-sm d-flex align-items-center justify-content-center" 
+                   href="?page={{ all_courses.previous_page_number }}" 
+                   style="background: var(--card-bg); color: var(--primary-blue); width: 35px; height: 35px;">
+                  <i class="fas fa-chevron-left" style="font-size: 0.8rem;"></i>
+                </a>
+              </li>
+            {% endif %}
+
+            {% for num in all_courses.paginator.page_range %}
+              {% if all_courses.number == num %}
+                <li class="page-item active">
+                  <span class="page-link rounded-pill px-3 border-0 shadow-sm fw-bold" 
+                        style="background: var(--primary-blue) !important; color: white;">{{ num }}</span>
+                </li>
+              {% elif num > all_courses.number|add:'-3' and num < all_courses.number|add:'3' %}
+                <li class="page-item">
+                  <a class="page-link rounded-pill px-3 border-0 shadow-sm fw-bold" 
+                     href="?page={{ num }}" 
+                     style="background: var(--card-bg); color: var(--text-dark);">{{ num }}</a>
+                </li>
+              {% endif %}
+            {% endfor %}
+
+            {% if all_courses.has_next %}
+              <li class="page-item">
+                <a class="page-link rounded-circle border-0 shadow-sm d-flex align-items-center justify-content-center" 
+                   href="?page={{ all_courses.next_page_number }}" 
+                   style="background: var(--card-bg); color: var(--primary-blue); width: 35px; height: 35px;">
+                  <i class="fas fa-chevron-right" style="font-size: 0.8rem;"></i>
+                </a>
+              </li>
+            {% endif %}
+          </ul>
+        </nav>
+      </div>
+      {% endif %}
     </div>
   </div>
 {% endblock %}

@@ -1,5 +1,5 @@
 from django.shortcuts import render, get_object_or_404, redirect
-from django.http import HttpResponseForbidden
+from django.http import HttpResponseForbidden, JsonResponse
 from django.contrib.auth import login, update_session_auth_hash, get_user_model
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.admin.views.decorators import staff_member_required
@@ -288,7 +288,6 @@ def login_success(request):
 
 @login_required
 def edit_profile(request):
-    # Ensure profile exists
     profile, created = Profile.objects.get_or_create(user=request.user)
     
     if request.method == 'POST':
@@ -298,14 +297,13 @@ def edit_profile(request):
         if u_form.is_valid() and p_form.is_valid():
             u_form.save()
             p_form.save()
-            messages.success(request, 'Profile updated successfully!')
-            # Success hone pe dashboard pe bhejo
+            messages.success(request, 'Your profile has been updated successfully!')
             return redirect('login_success') 
         else:
-            # DEBUG: Agar abhi bhi fail ho, toh terminal check karna
-            print("U-Form Errors:", u_form.errors)
-            print("P-Form Errors:", p_form.errors)
-            messages.error(request, 'Please correct the errors below.')
+            # Agar validation fail hui, toh ye screen par error dikhayega
+            messages.error(request, 'Form validation failed. Please check the fields below.')
+            # Console check ke liye (Server terminal mein dikhega)
+            print("Profile Errors:", p_form.errors)
     else:
         u_form = UserUpdateForm(instance=request.user)
         p_form = ProfileUpdateForm(instance=profile)
@@ -380,43 +378,41 @@ def course_detail(request, slug):
 
     return render(request, 'courses/course_detail.html', context)
 
+from django.http import FileResponse
+import os
+
+@login_required
 def lesson_detail(request, course_slug, lesson_id):
     course = get_object_or_404(Course, slug=course_slug)
     lesson = get_object_or_404(Lesson, id=lesson_id, course=course)
 
-    # 1. Initialize variables
-    student_queries = []
-    last_position = 0  # Default start at the beginning
-    
-    if request.user.is_authenticated:
-        # 2. Fetch student's previous questions for this lesson
-        student_queries = LessonQuery.objects.filter(lesson=lesson, student=request.user)
-        
-        # 3. Fetch last watched position for this specific lesson
-        progress = UserLessonProgress.objects.filter(user=request.user, lesson=lesson).first()
-        last_position = progress.last_position if progress else 0
-
-    # 4. Check enrollment/preview/teacher status
-    is_enrolled = request.user.is_authenticated and request.user in course.students.all()
+    # Permissions (Aapka existing logic)
+    is_enrolled = request.user in course.students.all()
     is_teacher = request.user == course.teacher
-    
     if not (lesson.is_preview or is_enrolled or is_teacher):
-        return render(request, 'courses/lesson_locked.html', {
-            'course': course, 
-            'lesson': lesson
-        })
+        return render(request, 'courses/lesson_locked.html', {'course': course, 'lesson': lesson})
 
-    # 5. Optimize module and lesson fetching
+    # --- ASLI SEEKER FIX STARTS HERE ---
+    if request.GET.get('video_file') == 'true' and lesson.content_file:
+        file_path = lesson.content_file.path
+        # FileResponse use karenge jo streaming support karta hai
+        response = FileResponse(open(file_path, 'rb'), content_type='video/mp4')
+        # Ye header browser ko batata hai ki video aage-piche ho sakti hai
+        response["Accept-Ranges"] = "bytes" 
+        return response
+    # --- ASLI SEEKER FIX ENDS HERE ---
+
+    # Baaki ka logic (queries/progress)
+    student_queries = LessonQuery.objects.filter(lesson=lesson, student=request.user)
+    progress = UserLessonProgress.objects.filter(user=request.user, lesson=lesson).first()
+    last_position = progress.last_position if progress else 0
     modules = course.modules.all().prefetch_related('lessons')
     
-    # 6. Render the player with all necessary context
     return render(request, 'courses/lesson_player.html', {
-        'course': course, 
-        'lesson': lesson, 
-        'modules': modules, 
-        'student_queries': student_queries,
-        'last_position': last_position  # Used by JavaScript to set video.currentTime
+        'course': course, 'lesson': lesson, 'modules': modules,
+        'student_queries': student_queries, 'last_position': last_position
     })
+
 
 @login_required
 def enroll_course(request, slug):
@@ -580,12 +576,25 @@ def edit_lesson(request, lesson_id):
     if request.method == 'POST':
         lesson.title = request.POST.get('title')
         lesson.lesson_type = request.POST.get('lesson_type')
-        lesson.video_url = request.POST.get('video_url')
+        
+        # ✅ NAYA LOGIC: URL update karo
+        new_url = request.POST.get('video_url')
+        lesson.video_url = new_url
+        
         lesson.is_preview = 'is_preview' in request.POST
         lesson.is_active = 'is_active' in request.POST
 
+        # ✅ FIX: Agar user ne naya YouTube URL daala hai, 
+        # toh purani file ko database se hata do taaki "Broken Pipe" na aaye.
+        if new_url and 'youtube.com' in new_url:
+            lesson.content_file = None 
+
+        # Agar user ne specifically nayi file upload ki hai
         if request.FILES.get('content_file'):
             lesson.content_file = request.FILES.get('content_file')
+            # Agar file upload ki hai, toh video_url ko khali kar do
+            lesson.video_url = ""
+
         lesson.save()
         return redirect('course_detail_edit', slug=lesson.course.slug)
     return render(request, 'courses/edit_lesson.html', {'lesson': lesson})
@@ -764,20 +773,35 @@ def deactivate_teacher(request, teacher_id):
 @login_required
 def all_instructors_view(request):
     # Security Check
-    if not (request.user.is_superuser or request.user.profile.user_type == 'Admin'):
+    if not (request.user.is_superuser or (hasattr(request.user, 'profile') and request.user.profile.user_type == 'Admin')):
         return HttpResponseForbidden("Unauthorized")
     
-    # Get all teacher, ordered by newest first
-    instructors = User.objects.filter(profile__user_type='Teacher').order_by('-date_joined')
-    return render(request, 'courses/all_instructors.html', {'instructors': instructors})
+    # 1. Get all teachers
+    instructor_list = User.objects.filter(profile__user_type='Teacher').order_by('-date_joined')
+    
+    # 2. Paginator Logic (10 teachers per page)
+    paginator = Paginator(instructor_list, 10)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    
+    # 3. page_obj ko context mein bhejo
+    return render(request, 'courses/all_instructors.html', {'instructors': page_obj})
 
 @login_required
 def all_inquiries_view(request):
-    if not (request.user.is_superuser or request.user.profile.user_type == 'Admin'):
+    if not (request.user.is_superuser or (hasattr(request.user, 'profile') and request.user.profile.user_type == 'Admin')):
         return HttpResponseForbidden("Unauthorized")
     
-    inquiries = ContactMessage.objects.all().order_by('-id')
-    return render(request, 'courses/all_inquiries.html', {'inquiries': inquiries})
+    # 1. Sabhi inquiries fetch karo
+    inquiry_list = ContactMessage.objects.all().order_by('-id')
+    
+    # 2. Paginator: Ek page par 10 inquiries
+    paginator = Paginator(inquiry_list, 10)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    
+    # 3. page_obj ko 'inquiries' key ke sath bhejo taaki template me changes na karne padein
+    return render(request, 'courses/all_inquiries.html', {'inquiries': page_obj})
 
 @login_required
 def reply_inquiry(request, msg_id):
@@ -852,15 +876,21 @@ def teacher_queries(request):
     except AttributeError:
         return HttpResponseForbidden("Access Denied: Profile not found.")
     
-    # NEW: Mark all unread notifications for this teacher as read when they open this page
+    # Notifications update logic (Sahi hai)
     Notification.objects.filter(user=request.user, is_read=False).update(is_read=True)
     
-    # Get queries for all lessons belonging to courses taught by this teacher
-    queries = LessonQuery.objects.filter(
+    # 1. Fetch queries (Order by '-created_at' zaroori hai taaki naye sawal upar aayein)
+    query_list = LessonQuery.objects.filter(
         lesson__course__teacher=request.user
-    ).select_related('lesson', 'student', 'lesson__course')
+    ).select_related('lesson', 'student', 'lesson__course').order_by('-created_at')
     
-    return render(request, 'courses/teacher_queries.html', {'queries': queries})
+    # 2. Paginator: Ek page par 10 queries dikhayenge
+    paginator = Paginator(query_list, 10)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    
+    # 3. page_obj ko 'queries' key mein bhejo
+    return render(request, 'courses/teacher_queries.html', {'queries': page_obj})
 
 @login_required
 def reply_query(request, query_id):
@@ -891,19 +921,26 @@ def submit_lesson_query(request, lesson_id):
     
 # courses/views.py
 
+from django.core.paginator import Paginator # 👈 Ye import zaroori hai
+
 @login_required
 def admin_communication_hub(request):
     # Security Check
     if not (request.user.is_superuser or (hasattr(request.user, 'profile') and request.user.profile.user_type == 'Admin')):
         return HttpResponseForbidden("Access Denied: Admin Privileges Required")
 
-    # Fetch all queries, including their course, teacher, and student info
-    all_queries = LessonQuery.objects.all().select_related(
+    # 1. Fetch all queries (Optimized with select_related)
+    query_list = LessonQuery.objects.all().select_related(
         'lesson', 'student', 'lesson__course', 'lesson__course__teacher'
     ).order_by('-created_at')
 
-    return render(request, 'courses/admin_communication.html', {'all_queries': all_queries})
+    # 2. Paginator Logic: Ek page par 10 queries dikhayenge
+    paginator = Paginator(query_list, 10) 
+    page_number = request.GET.get('page') # URL se current page number uthayega
+    page_obj = paginator.get_page(page_number)
 
+    # 3. page_obj ko context mein bhejo
+    return render(request, 'courses/admin_communication.html', {'all_queries': page_obj})
     
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -946,13 +983,19 @@ def is_admin(user):
 
 @user_passes_test(is_admin)
 def all_platform_courses(request):
-    # Annotate ensures 'num_students' is available for each course
-    courses = Course.objects.all().annotate(
+    # 1. Fetch all courses with student count and optimized relations
+    course_list = Course.objects.all().annotate(
         num_students=Count('students')
-    ).select_related('teacher', 'master_category')
+    ).select_related('teacher', 'master_category').order_by('-id') # -id se naye courses upar aayenge
     
+    # 2. Paginator Logic: Ek page par 10 records dikhayenge
+    paginator = Paginator(course_list, 5)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    
+    # 3. page_obj ko 'all_courses' ke naam se hi bhejo taaki template me changes na karne pade
     return render(request, 'courses/all_platform_courses.html', {
-        'all_courses': courses
+        'all_courses': page_obj
     })
 
 @login_required
@@ -1110,52 +1153,75 @@ def generate_otp():
     return ''.join(random.choices(string.digits, k=6))
 
 # --- API: EMAIL REGISTRATION WITH OTP ---
+import re # Sabse upar import karein
+
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def api_register(request):
-    """
-    API version of registration that sends a 6-digit verification OTP.
-    """
     data = request.data
-    username = data.get('username')
-    email = data.get('email')
+    username = data.get('username', '').strip()
+    email = data.get('email', '').lower().strip() # Email ko hamesha lower aur clean karo
     password = data.get('password')
     user_type = data.get('user_type', 'Student')
 
-    old_inactive_user = User.objects.filter(email=email, is_active=False).first()
-    if old_inactive_user:
-        old_inactive_user.delete()
+    # ✅ 1. NAYA LOGIC: Yahan hum Flutter se aane wala First Name aur Last Name pakdenge
+    first_name = data.get('first_name', '').strip()
+    last_name = data.get('last_name', '').strip()
 
+    # STRICT EMAIL VALIDATION (Server Side)
+    email_regex = r'^[\w\-\.]+@([\w\-]+\.)+[a-zA-Z]{3,}$'
+        
+    if not re.match(email_regex, email):
+        return Response({
+            "error": "Invalid email format! Please use an email ending with .com, .net, or .org"
+        }, status=400)
+
+    # 2. Duplicate Username Check
     if User.objects.filter(username=username).exists():
-        return Response({"error": "Username already taken"}, status=400)
+        return Response({"error": "This username is already taken. Please choose another one."}, status=400)
+
+    # 3. Duplicate Email Check
     if User.objects.filter(email=email).exists():
-        return Response({"error": "Email already registered"}, status=400)
+        return Response({"error": "This email is already registered. Please login."}, status=400)
 
-    # 1. Create User (Inactive until OTP verified)
-    user = User.objects.create_user(username=username, email=email, password=password)
-    user.is_active = False 
-    user.save()
+    # 4. Cleanup old inactive users (Same email)
+    User.objects.filter(email=email, is_active=False).delete()
 
-    # 2. Update Profile with OTP
-    otp = generate_otp()
-    profile = user.profile
-    profile.user_type = user_type
-    profile.email_verification_token = otp
-    profile.is_email_verified = False
-    profile.auth_provider = 'email'
-    profile.save()
-
-    # 3. Send Verification Email
     try:
+        # ✅ 2. YAHAN SAVE HOGA: create_user ke andar first_name aur last_name bhej diya
+        user = User.objects.create_user(
+            username=username, 
+            email=email, 
+            password=password,
+            first_name=first_name,  # 👈 YE ZAROORI HAI
+            last_name=last_name     # 👈 YE BHI ZAROORI HAI
+        )
+        user.is_active = False 
+        user.save()
+
+        # 6. Update Profile with OTP
+        otp = generate_otp()
+        profile = user.profile
+        profile.user_type = user_type
+        profile.email_verification_token = otp
+        profile.is_email_verified = False
+        profile.auth_provider = 'email'
+        profile.save()
+
+        # 7. Send Verification Email
         send_mail(
             subject='Verify your email - Shreeji GyanSetu',
-            message=f'Your verification code is: {otp}',
+            message=f'Hi {first_name} {last_name}, your verification code is: {otp}', # Email mein bhi naam aayega!
             from_email=settings.DEFAULT_FROM_EMAIL,
             recipient_list=[email],
             fail_silently=False,
         )
-        return Response({"message": "OTP sent to your email."}, status=201)
+        return Response({"message": "OTP sent to your email successfully!"}, status=201)
+
     except Exception as e:
+        # Agar email bhejane mein error aaye, toh user delete kar do 
+        if 'user' in locals():
+            user.delete()
         return Response({"error": f"Failed to send email: {str(e)}"}, status=500)
     
 # --- API: VERIFY OTP ---
@@ -1196,25 +1262,46 @@ def api_verify_email(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def api_google_login(request):
-    """
-    Handles Google Sign-In. If user exists, logins. If not, creates a verified account.
-    """
-    email = request.data.get('email')
+    email = request.data.get('email', '').lower().strip() # ✅ Email ko hamesha lower case aur trim karo
     google_id = request.data.get('google_id')
     first_name = request.data.get('first_name', '')
     last_name = request.data.get('last_name', '')
 
-    # Check if user already exists with this email
-    user = User.objects.filter(email=email).first()
+    if not email:
+        return Response({"error": "Email is required from Google"}, status=400)
 
-    if not user:
-        # Create new user for Google Sign-in
-        # Username is generated from email to keep it unique
-        username = email.split('@')[0] + "_" + get_random_string(5)
+    # 1. PEHLE EMAIL SE DHUNDHO (Unique check)
+    user = User.objects.filter(email__iexact=email).first()
+
+    if user:
+        # ✅ CASE: User mil gaya (Linking purana account)
+        # Isse ID 59 wala account hi use hoga
+        profile, created = Profile.objects.get_or_create(user=user)
+        
+        # Profile update karo agar pehle se google link nahi hai
+        if not profile.google_id:
+            profile.google_id = google_id
+            profile.auth_provider = 'google'
+            profile.is_email_verified = True
+            profile.save()
+
+        # Inactive user (jisne OTP verify nahi kiya) ko active kar do
+        if not user.is_active:
+            user.is_active = True
+            user.save()
+            
+        print(f"✅ Linked Google to existing user: {user.username}")
+
+    else:
+        # ❌ CASE: Bilkul naya email hai, toh hi naya account banao
+        # Username generation
+        base_username = email.split('@')[0]
+        username = f"{base_username}_{get_random_string(5)}"
+        
         user = User.objects.create_user(username=username, email=email)
         user.first_name = first_name
         user.last_name = last_name
-        user.is_active = True # Google users are pre-verified
+        user.is_active = True 
         user.save()
 
         profile = user.profile
@@ -1222,22 +1309,17 @@ def api_google_login(request):
         profile.google_id = google_id
         profile.auth_provider = 'google'
         profile.save()
-    else:
-        # User exists, ensure google_id is linked
-        profile = user.profile
-        if not profile.google_id:
-            profile.google_id = google_id
-            profile.auth_provider = 'google'
-            profile.is_email_verified = True # Trust Google's verification
-            profile.save()
+        print(f"✅ Created new Google user: {user.username}")
 
+    # Common: Token generate karo
     token, _ = Token.objects.get_or_create(user=user)
+    
     return Response({
         "token": token.key,
-        "username": user.username,
-        "user_type": profile.user_type,
+        "username": user.username, 
+        "user_type": user.profile.user_type,
         "message": "Google login successful"
-    }, status=200)
+    }, status=200) 
 
 # --- NEW API LOGIN: SUPPORT USERNAME OR EMAIL ---
 @api_view(['POST'])
@@ -1468,3 +1550,40 @@ def toggle_course_status(request, slug):
     else:
         messages.error(request, "Unauthorized access.")
     return redirect('course_detail_edit', slug=course.slug)
+
+from django.views.decorators.csrf import csrf_exempt
+import json
+
+@csrf_exempt
+@login_required
+def create_upi_collect(request):
+    if request.method == "POST":
+        data = json.loads(request.body)
+        upi_id = data.get("upi_id")
+        course_id = data.get("course_id")
+
+        course = get_object_or_404(Course, id=course_id)
+        amount = int(course.discount_price * 100)
+
+        client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
+
+        try:
+            payment = client.payment.create({
+                "amount": amount,
+                "currency": "INR",
+                "method": "upi",
+                "vpa": upi_id,
+                "flow": "collect",
+                "description": course.title
+            })
+
+            return JsonResponse({
+                "status": "success",
+                "payment_id": payment["id"]
+            })
+
+        except Exception as e:
+            return JsonResponse({
+                "status": "error",
+                "message": str(e)
+            })

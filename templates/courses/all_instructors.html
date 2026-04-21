@@ -14,15 +14,16 @@
       <a href="{% url 'admin_dashboard' %}" class="btn btn-outline-secondary btn-sm rounded-pill px-4 shadow-sm bg-white btn-dash-nav"><i class="fas fa-arrow-left me-2"></i>Back to Dashboard</a>
     </div>
 
-    <div id="instructor-mgmt" class="card border-0 shadow-sm mb-5" style="background: var(--card-bg); border-radius: 15px; overflow: hidden;">
-      <div class="card-header bg-transparent py-4 border-bottom d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
-        <h5 class="mb-0 fw-bold" style="color: var(--text-dark);"><i class="fas fa-chalkboard-teacher me-2 text-success"></i>All Registered Instructors</h5>
+    <div class="card-header bg-transparent py-4 border-bottom d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3" style="border-color: var(--border-color) !important;">
+      <h5 class="mb-0 fw-bold" style="color: var(--text-dark);"><i class="fas fa-chalkboard-teacher me-2 text-success"></i>All Registered Instructors</h5>
 
-        <div class="input-group search-input shadow-sm">
-          <span class="input-group-text bg-white border-end-0"><i class="fas fa-search text-muted"></i></span>
-          <input type="text" id="instructorSearch" class="form-control border-start-0" placeholder="Search by name or email..." />
-        </div>
+      <div class="input-group search-input shadow-sm" style="max-width: 350px;">
+        <span class="input-group-text border-end-0" style="background: var(--bg-light); border-color: var(--border-color);"><i class="fas fa-search text-muted"></i></span>
+        <input type="text" id="instructorSearch" class="form-control border-start-0" 
+              placeholder="Search by name or email..." 
+              style="background: var(--bg-light); color: var(--text-dark); border-color: var(--border-color);" />
       </div>
+    </div>
 
       <div class="table-responsive">
         <table class="table table-hover align-middle mb-0" id="instructorTable">
@@ -36,19 +37,19 @@
           </thead>
           <tbody id="instructorBody">
             {% for teacher in instructors %}
-              <tr class="instructor-row">
+              <tr class="instructor-row" style="border-color: var(--border-color);">
                 <td class="ps-4">
                   <div class="d-flex align-items-center">
                     <div class="rounded-circle bg-primary-subtle text-primary d-flex align-items-center justify-content-center me-3 fw-bold" style="width: 42px; height: 42px; font-size: 0.9rem; border: 1px solid rgba(var(--primary-rgb), 0.1);">{{ teacher.first_name|slice:':1' }}{{ teacher.last_name|slice:':1' }}</div>
                     <div>
                       <div class="fw-bold name-field" style="color: var(--text-dark);">{{ teacher.get_full_name|default:teacher.username }}</div>
-                      <div class="small text-muted email-field" style="font-size: 0.75rem;">{{ teacher.email }}</div>
+                      <div class="email-field" style="color: var(--text-muted-adaptive); font-size: 0.75rem;">{{ teacher.email }}</div>
                     </div>
                   </div>
                 </td>
                 <td>
-                  <div class="small fw-semibold text-dark">{{ teacher.profile.qualification|default:'-' }}</div>
-                  <div class="text-muted" style="font-size: 0.7rem;">Exp: {{ teacher.profile.experience_years|default:'0' }} Years</div>
+                  <div class="small fw-semibold" style="color: var(--text-dark);">{{ teacher.profile.qualification|default:'-' }}</div>
+                  <div style="color: var(--text-muted-adaptive); font-size: 0.7rem;">Exp: {{ teacher.profile.experience_years|default:'0' }} Years</div>
                 </td>
                 <td>
                   {% if teacher.is_active and teacher.profile.is_approved %}
@@ -79,7 +80,51 @@
         </table>
       </div>
     </div>
+    </div> {% if instructors.has_other_pages %}
+      <div class="card-footer bg-transparent border-0 py-4">
+        <nav aria-label="Instructor Page Navigation">
+          <ul class="pagination justify-content-center mb-0 gap-2">
+            
+            {% if instructors.has_previous %}
+              <li class="page-item">
+                <a class="page-link rounded-circle border-0 shadow-sm d-flex align-items-center justify-content-center" 
+                   href="?page={{ instructors.previous_page_number }}" 
+                   style="background: var(--card-bg); color: var(--primary-blue); width: 38px; height: 38px;">
+                  <i class="fas fa-chevron-left"></i>
+                </a>
+              </li>
+            {% endif %}
+
+            {% for num in instructors.paginator.page_range %}
+              {% if instructors.number == num %}
+                <li class="page-item active">
+                  <span class="page-link rounded-pill px-3 border-0 shadow-sm fw-bold" 
+                        style="background: var(--primary-blue) !important; color: white;">{{ num }}</span>
+                </li>
+              {% elif num > instructors.number|add:'-3' and num < instructors.number|add:'3' %}
+                <li class="page-item">
+                  <a class="page-link rounded-pill px-3 border-0 shadow-sm fw-bold" 
+                     href="?page={{ num }}" 
+                     style="background: var(--card-bg); color: var(--text-dark);">{{ num }}</a>
+                </li>
+              {% endif %}
+            {% endfor %}
+
+            {% if instructors.has_next %}
+              <li class="page-item">
+                <a class="page-link rounded-circle border-0 shadow-sm d-flex align-items-center justify-content-center" 
+                   href="?page={{ instructors.next_page_number }}" 
+                   style="background: var(--card-bg); color: var(--primary-blue); width: 38px; height: 38px;">
+                  <i class="fas fa-chevron-right"></i>
+                </a>
+              </li>
+            {% endif %}
+
+          </ul>
+        </nav> 
+      {% endif %}
   </div>
+
 
   {% block extra_js %}
     <script>

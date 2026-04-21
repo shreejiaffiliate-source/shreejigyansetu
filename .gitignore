@@ -1,6 +1,5 @@
+firebase-credentials.json
+data.json
+env1/
+gyansetu-env/
 db.sqlite3
-__pycache__/
-*.pyc
-staticfiles/
-media/
-.env

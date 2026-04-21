@@ -123,37 +123,66 @@ class UserUpdateForm(forms.ModelForm):
         return email
 
 class ProfileUpdateForm(forms.ModelForm):
-    # In fields ko optional banana zaroori hai taaki validation fail na ho
-    gender = forms.ChoiceField(
-        choices=[('Male', 'Male'), ('Female', 'Female'), ('Other', 'Other')],
-        required=False,
-        widget=forms.Select(attrs={'class': 'form-select'})
-    )
-    experience_years = forms.IntegerField(
-        required=False, 
-        widget=forms.NumberInput(attrs={'class': 'form-control'})
-    )
-    qualification = forms.CharField(
-        required=False,
-        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g. M.Sc in Physics'})
+    # Phone number validation
+    phone_number = forms.CharField(
+        required=True,
+        min_length=10,
+        max_length=10,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Enter 10 digit number',
+            'oninput': "this.value = this.value.replace(/[^0-9]/g, '');"
+        }),
+        error_messages={
+            'required': 'Mobile number is required.',
+            'min_length': 'Mobile number must be exactly 10 digits.',
+        }
     )
 
     class Meta:
         model = Profile
-        fields = ['photo', 'phone_number', 'address', 'bio',
-                  'gender', 'qualification', 'experience_years',
-                  'enrollment_number', 'date_of_birth', 'college_name', 'branch']
+        fields = ['photo', 'phone_number', 'enrollment_number', 'branch', 
+                  'college_name', 'qualification', 'experience_years','date_of_birth', 'bio']
         
         widgets = {
             'photo': forms.FileInput(attrs={'class': 'form-control'}),
-            'phone_number': forms.TextInput(attrs={'class': 'form-control'}),
-            'address': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
-            'bio': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
             'enrollment_number': forms.TextInput(attrs={'class': 'form-control'}),
+            'branch': forms.TextInput(attrs={'class': 'form-control'}),
+            'college_name': forms.TextInput(attrs={'class': 'form-control'}),
+            'qualification': forms.TextInput(attrs={'class': 'form-control'}),
+            # ✅ 2. Experience ke liye widget bhi add kar do taaki styling sahi rahe
+            'experience_years': forms.NumberInput(attrs={
+                'class': 'form-control', 
+                'placeholder': 'Years of Experience'
+            }),
             'date_of_birth': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
-            'college_name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g. IIT Delhi'}),
-            'branch': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g. Mechanical, IT'}),
+            'bio': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
         }
+
+        # Sabhi fields ke liye professional English error messages
+        error_messages = {
+            'enrollment_number': {'required': 'Enrollment number cannot be empty.'},
+            'branch': {'required': 'Please enter your branch/stream.'},
+            'college_name': {'required': 'College name is required.'},
+            'qualification': {'required': 'Current qualification is required.'},
+            'date_of_birth': {'required': 'Date of birth is mandatory.'},
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Check karo ki user Student hai ya Teacher
+        user_type = self.instance.user_type if self.instance else None
+        
+        for field in self.fields:
+            if field == 'bio' or field == 'photo':
+                self.fields[field].required = False
+            # Agar user Student NAHI hai, toh academic fields optional kar do
+            elif user_type != 'Student' and field in ['enrollment_number', 'branch', 'college_name', 'qualification', 'date_of_birth']:
+                self.fields[field].required = False
+            else:
+                self.fields[field].required = True
+
+
 class ReplyForm(forms.Form):
     message = forms.CharField(
         widget=forms.Textarea(attrs={

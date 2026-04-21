@@ -2,13 +2,17 @@ from rest_framework import generics, permissions, status, decorators
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.reverse import reverse
+from rest_framework.permissions import IsAuthenticated
+# ✅ DRF ke serializers ko alag naam se import karein taaki confusion na ho
+from rest_framework import serializers as drf_serializers 
+
 from .models import Course, MasterCategory, Notification, Profile, Carousel, Lesson, LessonQuery
 from .serializers import CourseSerializer, CategorySerializer, UserSerializer, SliderSerializer
+
 from django.db import IntegrityError
 from django.contrib.auth import get_user_model, update_session_auth_hash
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import never_cache
-from rest_framework.permissions import IsAuthenticated
 import razorpay
 from django.conf import settings
 from django.db.models import Count
@@ -18,7 +22,8 @@ User = get_user_model()
 class ApiRoot(APIView):
     def get(self, request, format=None):
         return Response({
-            'login': reverse('api_token_auth', request=request, format=format),
+            # ✅ Yahan 'api_token_auth' ko badal kar 'api_login' kar do
+            'login': reverse('api_login', request=request, format=format), 
             'register': reverse('api_register', request=request, format=format),
             'home': reverse('api_home', request=request, format=format),
             'courses': reverse('api_courses', request=request, format=format),
@@ -97,7 +102,6 @@ class MyCoursesView(generics.ListAPIView):
         context.update({"request": self.request})
         return context
 
-# 4. User Profile Details
 class UserProfileView(generics.RetrieveUpdateAPIView):
     serializer_class = UserSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -106,32 +110,47 @@ class UserProfileView(generics.RetrieveUpdateAPIView):
         return self.request.user
 
     def perform_update(self, serializer):
-        # 1. Save the basic user data (first_name, email, etc.)
-        user = serializer.save()
-        
-        # 2. Extract profile data from the request
-        # In Flutter, we sent these as 'profile.bio', etc.
-        profile_data = self.request.data
-        profile = user.profile
-        
-        # 3. Manually update the Profile fields
-        profile.phone_number = profile_data.get('profile.phone_number', profile.phone_number)
-        profile.branch = profile_data.get('profile.branch', profile.branch)
-        profile.college_name = profile_data.get('profile.college_name', profile.college_name)
-        profile.enrollment_number = profile_data.get('profile.enrollment_number', profile.enrollment_number)
-        profile.qualification = profile_data.get('profile.qualification', profile.qualification)
-        dob = profile_data.get('profile.date_of_birth')
-        if dob and dob.strip(): # If it has a real value, save it
-            profile.date_of_birth = dob
-        elif dob == "": # If it's an empty string from Flutter, set to NULL
-            profile.date_of_birth = None
-        profile.bio = profile_data.get('profile.bio', profile.bio)
-        
-        # 4. Handle the Photo upload if present
-        if 'profile.photo' in self.request.FILES:
-            profile.photo = self.request.FILES['profile.photo']
+        try:
+            # 1. Save the basic user data (first_name, last_name, email)
+            user = serializer.save()
             
-        profile.save()
+            # 2. Extract profile data
+            profile_data = self.request.data
+            profile = user.profile
+            
+            # 3. Validation for empty fields (English messages)
+            # Yahan hum user model ka first_name check kar rahe hain
+            if not user.first_name or user.first_name.strip() == "":
+                raise ValueError("First name cannot be empty.")
+
+            # 4. Update Profile fields
+            profile.phone_number = profile_data.get('profile.phone_number', profile.phone_number)
+            profile.branch = profile_data.get('profile.branch', profile.branch)
+            profile.college_name = profile_data.get('profile.college_name', profile.college_name)
+            profile.enrollment_number = profile_data.get('profile.enrollment_number', profile.enrollment_number)
+            profile.qualification = profile_data.get('profile.qualification', profile.qualification)
+            
+            dob = profile_data.get('profile.date_of_birth')
+            if dob and dob.strip():
+                profile.date_of_birth = dob
+            elif dob == "":
+                profile.date_of_birth = None
+                
+            profile.bio = profile_data.get('profile.bio', profile.bio)
+            
+            if 'profile.photo' in self.request.FILES:
+                profile.photo = self.request.FILES['profile.photo']
+                
+            profile.save()
+
+        except IntegrityError:
+            # ✅ drf_serializers use kiya hai taaki crash na ho
+            raise drf_serializers.ValidationError({
+                "enrollment_number": "This enrollment number is already in use. Please provide a unique one."
+            })
+        except ValueError as e:
+            # ✅ Yahan bhi drf_serializers use kiya hai
+            raise drf_serializers.ValidationError({"error": str(e)})
     
 class UserRegistrationView(APIView):
     permission_classes = [permissions.AllowAny]

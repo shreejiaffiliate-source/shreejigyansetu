@@ -9,12 +9,46 @@ class CategorySerializer(serializers.ModelSerializer):
         model = MasterCategory
         fields = ['id', 'title', 'slug', 'icon_class']
 
+from rest_framework import validators # Ye import zaroori hai
+
 class ProfileSerializer(serializers.ModelSerializer):
+    # Custom validation for Enrollment Number to show English message
+    enrollment_number = serializers.CharField(
+        required=True,
+        validators=[
+            validators.UniqueValidator(
+                queryset=Profile.objects.all(),
+                message="This enrollment number is already registered. Please use a unique one."
+            )
+        ],
+        error_messages={
+            "blank": "Enrollment number cannot be empty.",
+            "required": "Please provide your enrollment number."
+        }
+    )
+
     class Meta:
         model = Profile
-        fields = ['user_type', 'photo', 'phone_number', 'college_name', 
+        fields = [
+            'user_type', 'photo', 'phone_number', 'college_name', 
             'branch', 'enrollment_number', 'qualification', 
-            'date_of_birth', 'bio', 'is_approved']
+            'date_of_birth', 'bio', 'is_approved'
+        ]
+        # Adding English error messages for other fields
+        extra_kwargs = {
+            'phone_number': {
+                'required': True, 
+                'error_messages': {"required": "Mobile number is required."}
+            },
+            'college_name': {
+                'required': True, 
+                'error_messages': {"required": "Please enter your college name."}
+            },
+            'first_name': {
+                'required': True,
+                'error_messages': {"required": "First name is required."}
+            }
+        }
 
 class UserSerializer(serializers.ModelSerializer):
     profile = ProfileSerializer(read_only=True)

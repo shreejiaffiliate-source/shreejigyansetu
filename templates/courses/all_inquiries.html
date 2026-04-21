@@ -10,28 +10,26 @@
       <div>
         <nav aria-label="breadcrumb">
           <ol class="breadcrumb mb-1">
-            <li class="breadcrumb-item">
-              <a href="{% url 'admin_dashboard' %}" class="text-decoration-none">Dashboard</a>
-            </li>
+            <li class="breadcrumb-item"><a href="{% url 'admin_dashboard' %}" class="text-decoration-none">Dashboard</a></li>
             <li class="breadcrumb-item active" style="color: var(--text-dark);">Inquiries</li>
           </ol>
         </nav>
         <h3 class="fw-bold mb-0" style="color: var(--text-dark);">User Inquiries</h3>
-        <p class="text-muted small mb-0">Total {{ inquiries.count }} messages received from the platform.</p>
+        <p class="small mb-0" style="color: var(--text-muted-adaptive);">Total {{ inquiries.paginator.count }} messages received.</p>
       </div>
 
       <div class="d-flex gap-2">
-        <a href="{% url 'admin_dashboard' %}" class="btn btn-outline-secondary btn-sm rounded-pill px-4 shadow-sm bg-white btn-dash-nav"><i class="fas fa-arrow-left me-2"></i>Back to Dashboard</a>
+        <a href="{% url 'admin_dashboard' %}" class="btn btn-outline-secondary btn-sm rounded-pill px-4 shadow-sm bg-white btn-dash-nav"><i class="fas fa-arrow-left me-2"></i>Back</a>
       </div>
     </div>
 
     <div class="card border-0 shadow-sm" style="border-radius: 15px; overflow: hidden; background: var(--card-bg);">
-      <div class="card-header py-4 border-bottom bg-transparent">
+      <div class="card-header py-4 border-bottom bg-transparent" style="border-color: var(--border-color) !important;">
         <div class="row align-items-center">
           <div class="col-md-6">
             <div class="input-group search-box shadow-sm">
-              <span class="input-group-text bg-light border-0"><i class="fas fa-search text-muted"></i></span>
-              <input type="text" id="inquirySearch" class="form-control bg-light border-0" placeholder="Search by name, email or status..." />
+              <span class="input-group-text border-0" style="background: var(--bg-light);"><i class="fas fa-search text-muted"></i></span>
+              <input type="text" id="inquirySearch" class="form-control border-0" placeholder="Search by name, email..." style="background: var(--bg-light); color: var(--text-dark);" />
             </div>
           </div>
         </div>
@@ -40,7 +38,7 @@
       <div class="table-responsive">
         <table class="table table-hover align-middle mb-0" id="inquiryTable">
           <thead class="bg-light">
-            <tr class="text-muted small text-uppercase">
+            <tr class="small text-uppercase" style="color: var(--text-muted-adaptive);">
               <th class="ps-4">Sender Information</th>
               <th>Subject</th>
               <th>Status</th>
@@ -50,32 +48,28 @@
           </thead>
           <tbody>
             {% for msg in inquiries %}
-              <tr class="inquiry-row">
+              <tr class="inquiry-row" style="border-color: var(--border-color);">
                 <td class="ps-4">
                   <div class="fw-bold" style="color: var(--text-dark);">{{ msg.name }}</div>
-                  <div class="small text-muted">{{ msg.email }}</div>
+                  <div class="small" style="color: var(--text-muted-adaptive);">{{ msg.email }}</div>
                 </td>
                 <td>
                   <span class="small fw-bold" style="color: var(--text-dark);">{{ msg.subject }}</span>
                 </td>
-
                 <td>
                   {% if msg.is_resolved %}
                     <span class="badge bg-success-subtle text-success border border-success px-3 py-2"><i class="fas fa-check-circle me-1"></i> Replied</span>
                   {% else %}
-                    <span class="badge bg-danger-subtle text-danger border border-danger px-3 py-2 badge-pending"><i class="fas fa-clock me-1"></i> Pending</span>
+                    <span class="badge bg-danger-subtle text-danger border border-danger px-3 py-2"><i class="fas fa-clock me-1"></i> Pending</span>
                   {% endif %}
                 </td>
-
                 <td>
                   <div class="small fw-bold" style="color: var(--text-dark);">{{ msg.created_at|date:'d M, Y' }}</div>
-                  <div class="text-muted" style="font-size: 0.7rem;">{{ msg.created_at|time:'H:i' }}</div>
+                  <div style="color: var(--text-muted-adaptive); font-size: 0.7rem;">{{ msg.created_at|time:'H:i' }}</div>
                 </td>
-
                 <td class="text-end pe-4">
                   <div class="d-flex justify-content-end gap-2">
                     <a href="{% url 'reply_inquiry' msg.id %}" class="btn btn-sm btn-primary rounded-pill px-3 shadow-sm"><i class="fas fa-reply me-1"></i> Reply</a>
-
                     {% if not msg.is_resolved %}
                       <a href="{% url 'resolve_inquiry' msg.id %}" class="btn btn-sm btn-outline-success rounded-circle shadow-sm" title="Mark as Replied"><i class="fas fa-check"></i></a>
                     {% endif %}
@@ -84,15 +78,58 @@
               </tr>
             {% empty %}
               <tr>
-                <td colspan="5" class="text-center py-5 text-muted">
+                <td colspan="5" class="text-center py-5" style="color: var(--text-muted-adaptive);">
                   <i class="fas fa-inbox fa-4x mb-3 opacity-25"></i>
-                  <p class="fw-bold">No inquiries found in the system.</p>
+                  <p class="fw-bold">No inquiries found.</p>
                 </td>
               </tr>
             {% endfor %}
           </tbody>
         </table>
       </div>
+
+      {% if inquiries.has_other_pages %}
+      <div class="card-footer bg-transparent border-0 py-4">
+        <nav>
+          <ul class="pagination justify-content-center mb-0 gap-2">
+            {% if inquiries.has_previous %}
+              <li class="page-item">
+                <a class="page-link rounded-circle border-0 shadow-sm d-flex align-items-center justify-content-center" 
+                   href="?page={{ inquiries.previous_page_number }}" 
+                   style="background: var(--card-bg); color: var(--primary-blue); width: 35px; height: 35px;">
+                  <i class="fas fa-chevron-left" style="font-size: 0.8rem;"></i>
+                </a>
+              </li>
+            {% endif %}
+
+            {% for num in inquiries.paginator.page_range %}
+              {% if inquiries.number == num %}
+                <li class="page-item active">
+                  <span class="page-link rounded-pill px-3 border-0 shadow-sm fw-bold" 
+                        style="background: var(--primary-blue) !important; color: white;">{{ num }}</span>
+                </li>
+              {% elif num > inquiries.number|add:'-3' and num < inquiries.number|add:'3' %}
+                <li class="page-item">
+                  <a class="page-link rounded-pill px-3 border-0 shadow-sm fw-bold" 
+                     href="?page={{ num }}" 
+                     style="background: var(--card-bg); color: var(--text-dark);">{{ num }}</a>
+                </li>
+              {% endif %}
+            {% endfor %}
+
+            {% if inquiries.has_next %}
+              <li class="page-item">
+                <a class="page-link rounded-circle border-0 shadow-sm d-flex align-items-center justify-content-center" 
+                   href="?page={{ inquiries.next_page_number }}" 
+                   style="background: var(--card-bg); color: var(--primary-blue); width: 35px; height: 35px;">
+                  <i class="fas fa-chevron-right" style="font-size: 0.8rem;"></i>
+                </a>
+              </li>
+            {% endif %}
+          </ul>
+        </nav>
+      </div>
+      {% endif %}
     </div>
   </div>
 {% endblock %}

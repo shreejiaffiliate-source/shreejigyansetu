@@ -5,6 +5,7 @@ from django.conf.urls.static import static
 from django.contrib.auth import views as auth_views
 
 # Import views from courses app
+from courses import views
 from courses.views import (
     home, category_detail, course_detail, lesson_detail, search, 
     teacher_dashboard, upload_course, manage_curriculum, login_success, 
@@ -128,6 +129,7 @@ urlpatterns = [
     
 
     path('api/', api_views.ApiRoot.as_view(), name='api_root'),
+    path("create-upi-collect/", views.create_upi_collect),
 
 
     # Payment
