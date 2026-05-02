@@ -73,6 +73,7 @@ class LessonSerializer(serializers.ModelSerializer):
     is_preview = serializers.BooleanField(default=False)
     last_position = serializers.SerializerMethodField()
     is_completed = serializers.SerializerMethodField()
+    resources = serializers.CharField(required=False, allow_null=True, allow_blank=True)
 
 
     class Meta:

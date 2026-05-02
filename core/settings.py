@@ -23,7 +23,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     'django.contrib.sites',
     "users",
-    "courses",
+    'courses.apps.CoursesConfig',
     "smart_selects",
     "rest_framework",
     "rest_framework.authtoken",
@@ -34,7 +34,7 @@ INSTALLED_APPS = [
     'allauth.socialaccount.providers.google',
 ]
 
-SITE_ID = 1
+SITE_ID = 2
 
 AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend',
@@ -100,6 +100,9 @@ DATABASES = {
         'PASSWORD': 'Shreeji@123',
         'HOST': '72.60.223.238', # Agar database usi server par hai
         'PORT': '5432',
+        'OPTIONS': {
+            'connect_timeout': 10,
+        },
     }
 }
 
@@ -122,7 +125,7 @@ MEDIA_ROOT = os.path.join(BASE_DIR / 'media')
 # --- Auth Settings ---
 AUTH_USER_MODEL = 'users.User'
 LOGIN_REDIRECT_URL = 'login_success'
-LOGOUT_REDIRECT_URL = 'login'
+LOGOUT_REDIRECT_URL = 'home'
 LOGIN_URL = '/login/'
 
 # --- Email Config ---
@@ -139,21 +142,23 @@ RAZORPAY_KEY_ID = 'rzp_test_SOCWZ8L1q01O7W'
 RAZORPAY_KEY_SECRET = '5TdpyMGMMCIlOPu69YoW61Zs'
 
 # ================================================================
-# ✅ ALLAUTH & GOOGLE LOGIN SETTINGS (Bypass Signup Form)
+# ✅ ALLAUTH & GOOGLE LOGIN SETTINGS
 # ================================================================
-ACCOUNT_AUTHENTICATION_METHOD = 'username_email'
-ACCOUNT_EMAIL_REQUIRED = True
-ACCOUNT_USERNAME_REQUIRED = False
+ACCOUNT_LOGIN_METHODS = {"email", "username"}
+ACCOUNT_SIGNUP_FIELDS = ["email*"]
+
 ACCOUNT_EMAIL_VERIFICATION = "none"
 ACCOUNT_UNIQUE_EMAIL = True
 ACCOUNT_LOGOUT_ON_GET = True
 
-# 🚀 Ye dono lines signup form ko bypass karti hain
-SOCIALACCOUNT_AUTO_SIGNUP = True 
+SOCIALACCOUNT_AUTO_SIGNUP = True
 SOCIALACCOUNT_LOGIN_ON_GET = True
-
+SOCIALACCOUNT_EMAIL_VERIFICATION = "none"
 SOCIALACCOUNT_QUERY_EMAIL = True
+ACCOUNT_ADAPTER = 'allauth.account.adapter.DefaultAccountAdapter'
 SOCIALACCOUNT_ADAPTER = 'courses.adapters.MySocialAccountAdapter'
+
+ACCOUNT_SIGNUP_REDIRECT_URL = 'login_success'
 
 SOCIALACCOUNT_PROVIDERS = {
     'google': {
@@ -164,8 +169,8 @@ SOCIALACCOUNT_PROVIDERS = {
 }
 
 # --- Security ---
-SESSION_COOKIE_SECURE = True
-CSRF_COOKIE_SECURE = True
+SESSION_COOKIE_SECURE = False
+CSRF_COOKIE_SECURE = False
 SESSION_COOKIE_HTTPONLY = True
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 

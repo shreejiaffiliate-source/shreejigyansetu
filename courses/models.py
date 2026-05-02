@@ -266,7 +266,7 @@ class Profile(models.Model):
 
     qualification = models.CharField(max_length=200, blank=True, null=True, help_text="e.g. M.Sc in Physics")
     subject_specialization = models.ForeignKey('MasterCategory', on_delete=models.SET_NULL, null=True, blank=True, related_name='teachers')
-    experience_years = models.PositiveIntegerField(default=0)
+    experience_years = models.PositiveIntegerField(default=0,null=True, blank=True)
     bio = models.TextField(blank=True, help_text="Short professional summary")
     gender = models.CharField(max_length=10, choices=GENDER_CHOICES, default='Male')
     is_approved = models.BooleanField(default=False, help_text="Designates whether this teacher can upload courses.")

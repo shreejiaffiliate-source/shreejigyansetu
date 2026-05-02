@@ -43,6 +43,17 @@
         display: block !important;
       }
     }
+    .resource-content a {
+    color: var(--primary-cyan) !important;
+    text-decoration: none;
+    font-weight: 600;
+    transition: 0.3s;
+}
+
+.resource-content a:hover {
+    text-decoration: underline;
+    color: var(--primary-blue) !important;
+}
   </style>
 {% endblock %}
 
@@ -58,10 +69,10 @@
               controls
               class="w-100 h-100"
               controlsList="nodownload"
-              oncontextmenu="return false;"
+              oncontextmenu="return false;" 
               preload="metadata"
               poster="{% if lesson.thumbnail %}{{ lesson.thumbnail.url }}{% else %}{{ course.thumbnail.url }}{% endif %}">
-              <source src="{% url 'lesson_detail' course.slug lesson.id %}?video_file=true" type="video/mp4" />
+              <source src="{% url 'lesson_detail' course.slug lesson.id %}?stream=true" type="video/mp4" />
               Your browser does not support the video tag.
             </video>
 
@@ -121,8 +132,20 @@
                 </div>
                 <hr style="border-color: var(--border-color);" />
                 <div class="lesson-description" style="color: var(--text-dark); opacity: 0.8; line-height: 1.6; text-align: justify;">{{ lesson.description|linebreaks }}</div>
+                <!-- ✅ YE SECTION ADD KARO RESOURCES KE LIYE -->
+                {% if lesson.resources %}
+                <div class="mt-4 p-4 rounded-4 shadow-sm" style="background: var(--bg-light); border: 1px solid var(--border-color);">
+                    <h5 class="fw-bold mb-3" style="color: var(--text-dark);">
+                        <i class="fas fa-link me-2 text-primary"></i>Learning Resources
+                    </h5>
+                    <div class="resource-content" style="color: var(--text-dark); line-height: 1.8; opacity: 0.9;">
+                        <!-- urlize auto-links banayega aur linebreaks format sahi rakhega -->
+                        {{ lesson.resources|urlize|linebreaks }}
+                    </div>
+                </div>
+                {% endif %}
               </div>
-
+              
               {% if lesson.notes or lesson.notes_file %}
                 <div class="tab-pane fade" id="notes" role="tabpanel">
                   <div class="d-flex justify-content-between align-items-center mb-4">
@@ -143,6 +166,9 @@
                     </div>
                     {{ lesson.notes|linebreaks }}
                   </div>
+                  <a href="javascript:void(0)" onclick="openVideoFile()" class="btn btn-sm btn-outline-primary rounded-pill px-3">
+            <i class="fas fa-external-link-alt me-1"></i> Full File View
+        </a>
                 </div>
               {% endif %}
 
@@ -226,79 +252,138 @@
 {% endblock %}
 
 {% block extra_js %}
-  <script>
+<script>
     const video = document.getElementById('courseVideo');
     const saveUrl = "{% url 'update_lesson_progress' lesson.id %}";
     const markCompleteUrl = "{% url 'mark_lesson_complete' lesson.id %}";
-    const lastPos = parseFloat('{{ last_position|default:0 }}');
-    
+    const lastPos = parseFloat('{{ last_position|default:0 }}') || 0;
+    const storageKey = "course_{{ course.id }}_lesson_{{ lesson.id }}_progress";
+
+    function getResumeTime() {
+        const localSaved = parseFloat(localStorage.getItem(storageKey)) || 0;
+        return Math.max(localSaved, lastPos);
+    }
+
     if (video) {
-      let resumeAttempted = false;
+        let resumeDone = false;
+        let lastSavedSecond = 0;
 
-      // 1. Resume Logic
-      video.addEventListener('loadedmetadata', function() {
-        if (lastPos > 1 && !resumeAttempted) {
-          video.currentTime = lastPos;
-          resumeAttempted = true;
-          console.log('✅ Video Resumed to: ' + lastPos + 's');
-        }
-      });
+        function applyResume() {
+          const timeToResume = getResumeTime();
 
-      // --- ASLI FIX YAHAN HAI ---
-      
-      // Function jo progress bhejega backend ko
-      function saveProgress() {
-        const currentTime = Math.floor(video.currentTime);
-        if (currentTime > 0) {
-          fetch(saveUrl, {
-            method: 'POST',
-            headers: {
-              'X-CSRFToken': '{{ csrf_token }}',
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ last_position: currentTime }),
-            keepalive: true // Isse page close hone par bhi request chali jati hai
-          })
-          .then(() => console.log('💾 Saved at: ' + currentTime + 's'));
-        }
+          if (resumeDone) return;
+          if (timeToResume <= 1) return;
+
+          const tryResume = () => {
+              if (video.readyState >= 2) {
+                  video.currentTime = timeToResume;
+                  resumeDone = true;
+                  console.log("✅ Resumed at:", timeToResume);
+              } else {
+                  setTimeout(tryResume, 300);
+              }
+          };
+
+          tryResume();
       }
 
-      // A. Har 5 second mein auto-save (Interval thoda kam kar diya)
-      setInterval(() => {
-        if (!video.paused) { saveProgress(); }
-      }, 5000);
+        video.addEventListener('loadedmetadata', function () {
+            const savedTime = getResumeTime();
 
-      // B. JAISE HI PAUSE HO, TURANT SAVE KARO (Aapka 26 sec wala case yahan solve hoga)
-      video.addEventListener('pause', saveProgress);
+            if (savedTime > 1) {
+                video.currentTime = savedTime;
 
-      // C. AGAR BROWSER BACK YA CLOSE KAREIN (Safety ke liye)
-      window.addEventListener('visibilitychange', function() {
-        if (document.visibilityState === 'hidden') {
-          saveProgress();
-        }
-      });
-
-      // 3. Mark Complete
-      video.onended = function () {
-        fetch(markCompleteUrl, {
-          method: 'POST',
-          headers: {
-            'X-CSRFToken': '{{ csrf_token }}',
-            'Content-Type': 'application/json'
-          }
-        })
-        .then((response) => response.json())
-        .then((data) => {
-          if (data.status === 'success') {
-            alert('Congratulations! Lesson marked as completed.');
-            location.reload();
-          }
+                video.addEventListener('seeked', function resumePlay() {
+                    console.log("✅ Resume success at:", savedTime);
+                    video.removeEventListener('seeked', resumePlay);
+                });
+            }
         });
-      };
+
+        function saveProgress() {
+            const currentTime = Math.floor(video.currentTime || 0);
+
+            if (currentTime <= 0) return;
+
+            localStorage.setItem(storageKey, String(currentTime));
+
+            if (Math.abs(currentTime - lastSavedSecond) < 2) return;
+            lastSavedSecond = currentTime;
+
+            fetch(saveUrl, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ last_position: currentTime }),
+                keepalive: true
+            }).catch(() => {});
+        }
+
+        video.addEventListener('timeupdate', function () {
+            localStorage.setItem(storageKey, Math.floor(video.currentTime || 0));
+        });
+
+        video.addEventListener('pause', saveProgress);
+        video.addEventListener('seeking', saveProgress);
+        video.addEventListener('pagehide', saveProgress);
+        window.addEventListener('beforeunload', saveProgress);
+
+        setInterval(function () {
+            if (!video.paused && !video.ended) {
+                saveProgress();
+            }
+        }, 3000);
+
+        function openVideoFile() {
+            saveProgress();
+            const currentTime = Math.floor(video.currentTime || 0);
+            const url = "{% url 'lesson_detail' course.slug lesson.id %}?video_file=true&t=" + currentTime;
+            window.open(url, '_blank');
+        }
+
+        video.onended = function () {
+            localStorage.removeItem(storageKey);
+
+            fetch(markCompleteUrl, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}',
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    alert('Congratulations!');
+                    location.reload();
+                }
+            });
+        };
     }
 
     function loadLesson(url) {
-      window.location.replace(url);
+        if (video) {
+            const currentTime = Math.floor(video.currentTime || 0);
+            if (currentTime > 0) {
+                localStorage.setItem(storageKey, currentTime);
+
+                fetch(saveUrl, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': '{{ csrf_token }}',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ last_position: currentTime }),
+                    keepalive: true
+                }).catch(() => {});
+            }
+        }
+
+        setTimeout(function () {
+            window.location.href = url;
+        }, 150);
     }
 </script>
 {% endblock %}

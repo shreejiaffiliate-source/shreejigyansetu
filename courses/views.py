@@ -20,6 +20,7 @@ import random
 import string
 from django.utils.crypto import get_random_string
 from rest_framework.authtoken.models import Token
+from courses.models import Profile
 
 # Use get_user_model for compatibility with your custom user setup
 User = get_user_model()
@@ -147,53 +148,63 @@ def register(request):
     if request.method == 'POST':
         form = RegistrationForm(request.POST)
         if form.is_valid():
-            email = form.cleaned_data.get('email')
-            username = form.cleaned_data.get('username')
-
-            # 1. CLEANUP: Agar koi unverified user pehle se hai, toh use hata do
-            User.objects.filter(email=email, is_active=False).delete()
-
-            user = form.save(commit=False)
-            user.set_password(form.cleaned_data['password'])
-            user.is_active = False  # ✅ Hamesha inactive rakho jab tak verify na ho
-            user.save()
-            
-            # 2. Profile setup
-            profile = user.profile
-            selected_user_type = form.cleaned_data.get('user_type', 'Student')
-            profile.user_type = selected_user_type
-            profile.is_email_verified = False
-            
-            # OTP Generation
-            otp = generate_otp() # Aapka helper function
-            profile.email_verification_token = otp
-
-            if selected_user_type == 'Teacher':
-                profile.qualification = form.cleaned_data.get('qualification')
-                profile.experience_years = form.cleaned_data.get('experience_years')
-                profile.is_approved = False
-            else:
-                profile.is_approved = True # Students are approved but still need email verification
-            
-            profile.save()
-
-            # 3. Send OTP Mail
             try:
-                send_mail(
-                    subject='Verify Your Email - Shreeji GyanSetu',
-                    message=f'Hi {user.first_name}, your verification code is: {otp}',
-                    from_email=settings.DEFAULT_FROM_EMAIL,
-                    recipient_list=[user.email],
-                    fail_silently=False,
-                )
-                # Session mein email save karo taaki verification page pe use kar sakein
-                request.session['verification_email'] = user.email
-                messages.success(request, "An OTP has been sent to your email. Please verify.")
-                return redirect('verify_email_web') # ✅ Is URL ko urls.py mein banana hoga
+                email = form.cleaned_data.get('email')
+                username = form.cleaned_data.get('username')
+
+                # 1. CLEANUP: Inactive duplicate ko hatao
+                User.objects.filter(email=email, is_active=False).delete()
+
+                # Check if active user exists (prevent crash)
+                if User.objects.filter(email=email).exists():
+                    messages.error(request, "This email is already registered and active.")
+                    return render(request, 'registration/register.html', {'form': form})
+
+                user = form.save(commit=False)
+                user.set_password(form.cleaned_data['password'])
+                user.is_active = False  
+                user.save()
+                
+                # 2. Profile setup (Using get_or_create to prevent crash)
+                profile, created = Profile.objects.get_or_create(user=user)
+                
+                selected_user_type = form.cleaned_data.get('user_type', 'Student')
+                profile.user_type = selected_user_type
+                profile.is_email_verified = False
+                
+                # OTP Generation
+                otp = generate_otp() 
+                profile.email_verification_token = otp
+
+                if selected_user_type == 'Teacher':
+                    profile.qualification = form.cleaned_data.get('qualification')
+                    profile.experience_years = form.cleaned_data.get('experience_years')
+                    profile.is_approved = False
+                else:
+                    profile.is_approved = True 
+                
+                profile.save()
+
+                # 3. Send OTP Mail
+                try:
+                    send_mail(
+                        subject='Verify Your Email - Shreeji GyanSetu',
+                        message=f'Hi {user.first_name}, your verification code is: {otp}',
+                        from_email=settings.DEFAULT_FROM_EMAIL,
+                        recipient_list=[user.email],
+                        fail_silently=False,
+                    )
+                    request.session['verification_email'] = user.email
+                    messages.success(request, "An OTP has been sent to your email.")
+                    return redirect('verify_email_web')
+                except Exception as e:
+                    print(f"Mail Error: {e}")
+                    user.delete() # Mail fail toh user delete taaki retry ho sake
+                    messages.error(request, "Failed to send verification email. Try again.")
+            
             except Exception as e:
-                messages.error(request, f"Error sending email: {e}")
-                # Optional: delete user if mail fails to allow retry
-                user.delete() 
+                print(f"🚨 Register Crash: {e}") # Ye terminal mein error dikhayega
+                messages.error(request, f"Internal Server Error: {e}")
                 
     else:
         form = RegistrationForm()
@@ -258,32 +269,38 @@ def teacher_detail(request, username):
 
 @login_required
 def login_success(request):
-    # 1. Handle Superusers or users without profiles
+    # 1. Profile Check (Purane users ka profile shayad missing ho)
     if not hasattr(request.user, 'profile'):
+        print(f"DEBUG: User {request.user.username} has NO profile.")
         if request.user.is_superuser:
-            return redirect('/admin/') # Standard Django Admin
+            return redirect('/admin/')
         return redirect('home')
     
     profile = request.user.profile
     u_type = profile.user_type
-    
-    # 2. Teacher Logic with Approval Gate
+    print(f"DEBUG: User {request.user.username} is logged in as {u_type}")
+
+    # 2. Email Verification Gate (Iska check yahan dalo)
+    # Agar purane students verified nahi hain, toh unhe verify page par bhejo ya bypass karo
+    if not profile.is_email_verified:
+        print(f"DEBUG: {request.user.username} is not verified. Redirecting to home or verification.")
+        # Agar aap chahte ho ki bina verify kiye login ho jaye, toh ise comment rehne do
+        # return redirect('home') 
+
+    # 3. Teacher Logic
     if u_type == 'Teacher':
         if not profile.is_approved:
-            # Capture user info before logging out to personalize the waiting page
             user_info = request.user 
-            logout(request) # Terminate session so they can't access other URLs
-            
-            # Show the dedicated waiting screen instead of redirecting to login
+            logout(request)
             return render(request, 'registration/waiting_approval.html', {'user': user_info})
-            
         return redirect('teacher_dashboard')
     
-    # 3. Admin Dashboard (Custom Management Console)
+    # 4. Admin Dashboard
     elif u_type == 'Admin':
         return redirect('admin_dashboard')
     
-    # 4. Default: Student Dashboard
+    # 5. Student Dashboard (Default)
+    print(f"DEBUG: Redirecting {request.user.username} to student_dashboard")
     return redirect('student_dashboard')
 
 @login_required
@@ -392,20 +409,28 @@ def lesson_detail(request, course_slug, lesson_id):
     if not (lesson.is_preview or is_enrolled or is_teacher):
         return render(request, 'courses/lesson_locked.html', {'course': course, 'lesson': lesson})
 
-    # --- ASLI SEEKER FIX STARTS HERE ---
-    if request.GET.get('video_file') == 'true' and lesson.content_file:
-        file_path = lesson.content_file.path
-        # FileResponse use karenge jo streaming support karta hai
-        response = FileResponse(open(file_path, 'rb'), content_type='video/mp4')
-        # Ye header browser ko batata hai ki video aage-piche ho sakti hai
-        response["Accept-Ranges"] = "bytes" 
-        return response
-    # --- ASLI SEEKER FIX ENDS HERE ---
+    url_time = request.GET.get('t')
 
+    # --- ASLI SEEKER FIX STARTS HERE ---
+    if request.GET.get('stream') == 'true' and lesson.content_file:
+        file_path = lesson.content_file.path
+        response = FileResponse(open(file_path, 'rb'), content_type='video/mp4')
+        response["Accept-Ranges"] = "bytes"
+        return response
+    # --- ASLI SEEKER 
+    #FIX ENDS HERE ---
+
+    if url_time:
+        last_position = float(url_time)
+    else:
+        progress = UserLessonProgress.objects.filter(user=request.user, lesson=lesson).first()
+        last_position = progress.last_position if progress else 0
+
+    
     # Baaki ka logic (queries/progress)
     student_queries = LessonQuery.objects.filter(lesson=lesson, student=request.user)
-    progress = UserLessonProgress.objects.filter(user=request.user, lesson=lesson).first()
-    last_position = progress.last_position if progress else 0
+    # progress = UserLessonProgress.objects.filter(user=request.user, lesson=lesson).first()
+    # last_position = progress.last_position if progress else 0
     modules = course.modules.all().prefetch_related('lessons')
     
     return render(request, 'courses/lesson_player.html', {
@@ -558,46 +583,52 @@ def add_lesson(request, module_id):
             lesson_type=request.POST.get('lesson_type'),
             video_url=request.POST.get('video_url'),
             content_file=request.FILES.get('content_file'),
+            resources=request.POST.get('resources'), # 👈 Ye line add karo
+            # ✅ NAYA: Notes PDF ko save karne ke liye
+            notes_file=request.FILES.get('notes_file'),
             is_preview=request.POST.get('is_preview') == 'on',
             lecturer_name=request.user.get_full_name() or request.user.username
         )
         return redirect('manage_curriculum', course_slug=module.course.slug)
     return render(request, 'courses/add_lesson.html', {'module': module})
-
+ 
 @login_required
 def edit_lesson(request, lesson_id):
     lesson = get_object_or_404(Lesson, id=lesson_id)
     course = lesson.course
 
+    # Permission check
     is_admin = request.user.profile.user_type == 'Admin' or request.user.is_superuser
     if course.teacher != request.user and not is_admin:
-        return HttpResponseForbidden("Access Denied: You do not have permission to edit this lesson.")
+        return HttpResponseForbidden("Access Denied.")
 
     if request.method == 'POST':
         lesson.title = request.POST.get('title')
-        lesson.lesson_type = request.POST.get('lesson_type')
-        
-        # ✅ NAYA LOGIC: URL update karo
+        lesson.lesson_type = request.POST.get('lesson_type') # Ye 'Video' hi rehne dena agar video dikhana hai
+        lesson.resources = request.POST.get('resources') # 👈 Ye line add karo
+        # Video URL update logic
         new_url = request.POST.get('video_url')
-        lesson.video_url = new_url
+        if new_url:
+            lesson.video_url = new_url
+            # Agar URL hai, toh direct upload file ko null kar sakte hain (optional)
         
         lesson.is_preview = 'is_preview' in request.POST
         lesson.is_active = 'is_active' in request.POST
 
-        # ✅ FIX: Agar user ne naya YouTube URL daala hai, 
-        # toh purani file ko database se hata do taaki "Broken Pipe" na aaye.
-        if new_url and 'youtube.com' in new_url:
-            lesson.content_file = None 
-
-        # Agar user ne specifically nayi file upload ki hai
+        # ✅ FIX: Video File upload (Ye video url ko tabhi khali karega jab file upload ho)
         if request.FILES.get('content_file'):
             lesson.content_file = request.FILES.get('content_file')
-            # Agar file upload ki hai, toh video_url ko khali kar do
-            lesson.video_url = ""
+            # lesson.video_url = "" # Ise comment out kar raha hoon taaki URL safe rahe
 
+        # ✅ PDF upload (Ye sirf notes_file ko update karega, video ko nahi chedega)
+        if request.FILES.get('notes_file'):
+            lesson.notes_file = request.FILES.get('notes_file')
+            
         lesson.save()
         return redirect('course_detail_edit', slug=lesson.course.slug)
+    
     return render(request, 'courses/edit_lesson.html', {'lesson': lesson})
+
 
 @login_required
 def delete_lesson(request, lesson_id):
@@ -892,18 +923,30 @@ def teacher_queries(request):
     # 3. page_obj ko 'queries' key mein bhejo
     return render(request, 'courses/teacher_queries.html', {'queries': page_obj})
 
+from .utils import send_push_notification # ✅ Apna firebase wala file import karo
+
 @login_required
 def reply_query(request, query_id):
-    query = get_object_or_404(LessonQuery, id=query_id, lesson__course__teacher=request.user)
-    
+    query = get_object_or_404(
+        LessonQuery,
+        id=query_id,
+        lesson__course__teacher=request.user
+    )
+
     if request.method == 'POST':
         answer = request.POST.get('answer')
+
+        if query.is_resolved:
+            messages.warning(request, "Reply already sent.")
+            return redirect('teacher_queries')
+
         query.answer = answer
         query.is_resolved = True
-        query.save()
-        messages.success(request, "Your reply has been sent to the student!")
+        query.save()   # Notification yahi se model se jayegi
+
+        messages.success(request, "Your reply has been sent successfully!")
         return redirect('teacher_queries')
-        
+
     return render(request, 'courses/reply_query_modal.html', {'query': query})
 
 @login_required
@@ -1587,3 +1630,49 @@ def create_upi_collect(request):
                 "status": "error",
                 "message": str(e)
             })
+        
+from django.contrib.auth import authenticate, login as auth_login
+
+def login_view(request):
+    if request.user.is_authenticated:
+        return redirect('login_success')
+
+    if request.method == 'POST':
+        u_name = request.POST.get('username')
+        p_word = request.POST.get('password')
+        
+        # Authenticate check
+        user = authenticate(username=u_name, password=p_word)
+        
+        if user is not None:
+            if user.is_active:
+                auth_login(request, user)
+                
+                # 🔥 YAHAN DALO YE LOGIC 🔥
+                # Isse purane aur naye sabhi users ka token ensure ho jayega
+                token, created = Token.objects.get_or_create(user=user)
+                if created:
+                    print(f"✅ DEBUG: New Token generated for {u_name}")
+                
+                print(f"✅ DEBUG: Login Success for {u_name}")
+                return redirect('login_success')
+            else:
+                messages.error(request, "Your account is not active. Please verify your email.")
+        else:
+            messages.error(request, "Invalid username or password.")
+            
+    return render(request, 'registration/login.html')
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def save_fcm_token(request):
+    token = request.data.get('fcm_token')
+
+    if not token:
+        return Response({"error": "FCM token missing"}, status=400)
+
+    profile = request.user.profile
+    profile.fcm_token = token
+    profile.save()
+
+    return Response({"message": "FCM token saved successfully"})

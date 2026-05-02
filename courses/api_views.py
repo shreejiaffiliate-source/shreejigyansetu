@@ -156,24 +156,28 @@ class UserRegistrationView(APIView):
     permission_classes = [permissions.AllowAny]
 
     def post(self, request):
-        data = request.data  # DRF parses JSON or Form data automatically
+        data = request.data 
+
+        print("REGISTER DATA:", data) 
         
+        # ✅ Flutter fields se match karo
         username = data.get('username')
         password = data.get('password')
         email = data.get('email')
-        first_name = data.get('first_name', '')
-        last_name = data.get('last_name', '')
-        user_type = data.get('user_type', 'Student')
+        first_name = data.get('firstName', '') # Flutter sends firstName
+        last_name = data.get('lastName', '')   # Flutter sends lastName
+        user_type = data.get('userType', 'Student') # Flutter sends userType
 
-        # 1. Basic Validation
         if not username or not password:
             return Response({"error": "Username and password are required"}, status=status.HTTP_400_BAD_REQUEST)
 
         if User.objects.filter(username=username).exists():
             return Response({"error": "Username already taken"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if User.objects.filter(email=email).exists():
+            return Response({"error": "Email already registered"}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            # 2. Create User
             user = User.objects.create_user(
                 username=username,
                 password=password,
@@ -182,22 +186,26 @@ class UserRegistrationView(APIView):
                 last_name=last_name
             )
 
-            # 3. Update Profile (Django signals usually create the profile automatically)
-            profile = user.profile
+            # ✅ Profile setup (Safe way)
+            profile, created = Profile.objects.get_or_create(user=user)
             profile.user_type = user_type
-            
+
             if user_type == 'Teacher':
                 profile.qualification = data.get('qualification', '')
-                profile.experience_years = data.get('experience', '')
-                profile.is_approved = False # Teachers need admin approval
+                # Experience ko number mein convert karo, empty string crash kar sakti hai
+                exp = data.get('experience', '0')
+                profile.experience_years = int(exp) if exp and exp.isdigit() else 0
+                profile.is_approved = False 
             else:
-                profile.is_approved = True # Students approved by default
-            
+                profile.is_approved = True 
+                
             profile.save()
-
+            
             return Response({"message": "Registration successful"}, status=status.HTTP_201_CREATED)
 
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
 class EnrollCourseView(APIView):

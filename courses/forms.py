@@ -4,6 +4,7 @@ from .models import Course, Module, Lesson
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import User
 from .models import Profile
+import re
 
 User = get_user_model()
 
@@ -81,6 +82,74 @@ class RegistrationForm(forms.ModelForm):
             'email': forms.EmailInput(attrs={'class': 'form-control bg-light border-0', 'placeholder': 'Email Address'}),
         }
 
+    def clean_first_name(self):
+        first_name = self.cleaned_data.get('first_name', '').strip()
+
+        if not first_name:
+            raise forms.ValidationError("First name is required.")
+
+        if not re.match(r'^[A-Za-z ]+$', first_name):
+            raise forms.ValidationError("First name can contain only letters.")
+
+        return first_name.title()
+
+    def clean_last_name(self):
+        last_name = self.cleaned_data.get('last_name', '').strip()
+
+        if not last_name:
+            raise forms.ValidationError("Last name is required.")
+
+        if not re.match(r'^[A-Za-z ]+$', last_name):
+            raise forms.ValidationError("Last name can contain only letters.")
+
+        return last_name.title()
+
+    def clean_username(self):
+        username = self.cleaned_data.get('username', '').strip()
+
+        if len(username) < 4:
+            raise forms.ValidationError("Username must be at least 4 characters long.")
+
+        if not re.match(r'^[A-Za-z0-9_]+$', username):
+            raise forms.ValidationError("Username can contain only letters, numbers, and underscores.")
+
+        if User.objects.filter(username__iexact=username).exists():
+            raise forms.ValidationError("This username is already taken.")
+
+        return username
+
+    def clean_email(self):
+        email = self.cleaned_data.get('email', '').strip().lower()
+
+        allowed_tlds = ['com', 'in', 'org', 'net', 'edu']
+        blocked_domains = [
+            'gmal.com', 'gmial.com', 'gmail.co', 'gmail.con',
+            'gamil.com', 'gnail.com', 'yaho.com', 'yahoo.co',
+            'outlok.com', 'hotmial.com'
+        ]
+
+        email_regex = r'^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'
+
+        if not re.match(email_regex, email):
+            raise forms.ValidationError("Please enter a valid email address.")
+
+        domain = email.split('@')[1]
+        tld = domain.split('.')[-1]
+
+        if domain in blocked_domains:
+            raise forms.ValidationError("Invalid email domain. Please check your email spelling.")
+
+        if tld not in allowed_tlds:
+            raise forms.ValidationError("Only .com, .in, .org, .net, and .edu email addresses are allowed.")
+
+        if domain.endswith('.co'):
+            raise forms.ValidationError("Please use a full valid domain like .com or .in. Short .co emails are not allowed.")
+
+        if User.objects.filter(email__iexact=email, is_active=True).exists():
+            raise forms.ValidationError("This email is already registered. Please log in instead.")
+
+        return email
+
     def clean(self):
         cleaned_data = super().clean()
         password = cleaned_data.get("password")
@@ -88,8 +157,11 @@ class RegistrationForm(forms.ModelForm):
         user_type = cleaned_data.get("user_type")
 
         # Basic Password Validation
-        if password != confirm_password:
-            raise forms.ValidationError("Passwords do not match!")
+        if password and len(password) < 6:
+            self.add_error('password', "Password must be at least 8 characters long.")
+
+        if password and confirm_password and password != confirm_password:
+            self.add_error('confirm_password', "Passwords do not match.")
 
         # Logical Validation: Ensure Teachers provide their background
         if user_type == 'Teacher':
@@ -174,13 +246,31 @@ class ProfileUpdateForm(forms.ModelForm):
         user_type = self.instance.user_type if self.instance else None
         
         for field in self.fields:
+            # 1. Bio aur Photo hamesha optional rahenge
             if field == 'bio' or field == 'photo':
                 self.fields[field].required = False
-            # Agar user Student NAHI hai, toh academic fields optional kar do
+                
+            # 2. Student ke liye academic fields zaroori hain
+            elif user_type == 'Student' and field in ['enrollment_number', 'branch', 'college_name', 'qualification', 'date_of_birth']:
+                self.fields[field].required = True
+                
+            # 3. Teacher ke liye academic fields optional (jo aapne pehle logic likha tha)
             elif user_type != 'Student' and field in ['enrollment_number', 'branch', 'college_name', 'qualification', 'date_of_birth']:
                 self.fields[field].required = False
-            else:
+                
+            # 4. Teacher specific fields (experience_years) ko handle karo
+            elif field == 'experience_years':
+                # Isko False rakho taaki "This field is required" wala error na aaye
+                self.fields[field].required = False
+                
+            # 5. Phone number hamesha zaroori rahega
+            elif field == 'phone_number':
                 self.fields[field].required = True
+                
+            # 6. Baki sab default behavior par chhod do (ya False kar do safe side ke liye)
+            else:
+                # Purana logic maintain karne ke liye isko False rakhte hain taaki unexpected error na aaye
+                self.fields[field].required = False
 
 
 class ReplyForm(forms.Form):

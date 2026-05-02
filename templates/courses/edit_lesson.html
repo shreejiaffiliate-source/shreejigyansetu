@@ -27,9 +27,27 @@
                     </div>
 
                     <div class="mb-3">
-                        <label class="fw-bold">Change File (Optional)</label>
+                        <label class="fw-bold">Change File</label>
                         <input type="file" name="content_file" class="form-control">
                         {% if lesson.content_file %}<small class="text-muted d-block mt-1">Current: {{ lesson.content_file.name }}</small>{% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="fw-bold">Notes PDF</label>
+                        <input type="file" name="notes_file" class="form-control" accept=".pdf">
+
+                        {% if lesson.notes_file %}
+                        <small class="text-muted d-block mt-1">
+                            Current PDF:
+                            <a href="{{ lesson.notes_file.url }}" target="_blank">View Notes</a>
+                        </small>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="fw-bold">Lesson Resources (Links / Notes)</label>
+                        <textarea name="resources" class="form-control" rows="3" placeholder="Add useful links, notes, or extra resources here..."></textarea>
+                        <small class="text-muted">You can add GitHub links, documentation links, or any helpful website URLs here.</small>
                     </div>
 
                     <div class="mb-4">

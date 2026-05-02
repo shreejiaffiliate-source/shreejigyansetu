@@ -794,3 +794,21 @@ footer .navbar-brand span {
     color: white !important;
     transform: translateY(-2px);
 }
+
+.table-responsive {
+  overflow: visible !important;
+}
+
+.dropdown {
+  position: static;
+}
+
+.dropdown-menu {
+  z-index: 9999 !important;
+  min-width: 165px;
+}
+
+td .dropdown-menu {
+  right: 25px !important;
+  left: auto !important;
+}

@@ -52,7 +52,7 @@ urlpatterns = [
     path('admin-dashboard/', admin_dashboard, name='admin_dashboard'),
     
     # Auth
-    path('login/', auth_views.LoginView.as_view(), name='login'),
+    path('login/', views.login_view, name='login'),
     path('logout/', auth_views.LogoutView.as_view(), name='logout'),
     path('login-success/', login_success, name='login_success'),
     path('register/', register, name='register'),
@@ -130,6 +130,7 @@ urlpatterns = [
 
     path('api/', api_views.ApiRoot.as_view(), name='api_root'),
     path("create-upi-collect/", views.create_upi_collect),
+    path('api/save-fcm-token/', views.save_fcm_token, name='save_fcm_token'),
 
 
     # Payment

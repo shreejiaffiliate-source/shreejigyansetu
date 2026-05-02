@@ -30,8 +30,21 @@
             </div>
 
             <div class="mb-3">
-              <label class="fw-bold">Upload File (MP4 or PDF)</label>
+              <label class="fw-bold">Upload File (MP4)</label>
               <input type="file" name="content_file" class="form-control" />
+            </div>
+
+            <!-- ✅ NAYA SECTION: Notes PDF ke liye -->
+            <div class="mb-3">
+              <label class="fw-bold">Notes PDF</label>
+              <input type="file" name="notes_file" class="form-control" accept=".pdf" />
+              <small class="text-muted">Upload a PDF that students can view while watching the video.</small>
+            </div>
+
+            <div class="mb-3">
+                <label class="fw-bold">Lesson Resources (Links/Text)</label>
+                <textarea name="resources" class="form-control" rows="3" placeholder="Yahan links ya extra info dalo..."></textarea>
+                <small class="text-muted">Aap yahan GitHub links ya website URLs de sakte hain.</small>
             </div>
 
             <div class="form-check form-switch mb-4">
