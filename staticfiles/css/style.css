@@ -36,6 +36,7 @@ body {
   background: var(--card-bg) !important;
   border-bottom: 1px solid var(--border-color);
   padding: 0.8rem 0;
+  z-index: 1050 !important;
 }
 
 .navbar-brand span {
@@ -123,6 +124,24 @@ body {
 .btn-dark {
   background-color: var(--primary-blue);
   border: none;
+}
+
+.btn-google-custom {
+  transition: all 0.3s ease !important;
+  background: transparent !important;
+}
+
+.btn-google-custom:hover {
+  background-color: rgba(0, 0, 0, 0.05) !important; /* Bahut halka grey */
+  border-color: var(--primary-cyan) !important;
+  color: var(--text-dark) !important;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Dark Mode ke liye adjustment */
+[data-theme="dark"] .btn-google-custom:hover {
+  background-color: rgba(255, 255, 255, 0.1) !important;
 }
 
 .fa-certificate {
@@ -416,6 +435,15 @@ input[type="file"]::file-selector-button {
   color: #adb5bd;
 }
 
+.profile-dropdown {
+  z-index: 9999 !important; /* Isse wo course content ke upar dikhega */
+}
+
+.dropdown-menu-end {
+  right: 0;
+  left: auto;
+}
+
 /* Ensure dropdown items inherit the theme text color */
 .profile-dropdown .dropdown-item {
   color: var(--text-dark);
@@ -501,6 +529,15 @@ input[type="file"]::file-selector-button {
 }
 .accordion-button:not(.collapsed)::after {
   filter: brightness(0) invert(1);
+}
+
+.teacher-link:hover h6 {
+  color: var(--primary-cyan) !important;
+  transition: color 0.2s ease;
+}
+.teacher-link:hover img {
+  transform: scale(1.05);
+  transition: transform 0.2s ease;
 }
 
 /* Ensure all tables are theme-adaptive */
@@ -689,4 +726,71 @@ footer .navbar-brand span {
     border-radius: 12px;
     box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
   }
+}
+
+
+/* --- TEACHER DASHBOARD & MODAL DARK MODE FIX --- */
+
+/* Dono attributes ke liye support (.co block karne ke liye regex jaisa logic) */
+[data-theme="dark"] .form-control, 
+[data-bs-theme="dark"] .form-control,
+[data-theme="dark"] .form-select,
+[data-bs-theme="dark"] .form-select {
+    background-color: #1e1e1e !important; /* Card background ke sath match */
+    color: #e0e0e0 !important;           /* Light text visibility */
+    border: 1px solid #444 !important;
+}
+
+/* 1. Modal (Queries Reply Box) Fix */
+[data-theme="dark"] .modal-content,
+[data-bs-theme="dark"] .modal-content {
+    background-color: #1e1e1e !important;
+    color: #e0e0e0 !important;
+    border: 1px solid #333;
+}
+
+/* Typing area in Modal (Important for Query Reply) */
+[data-theme="dark"] textarea[name="answer"],
+[data-bs-theme="dark"] textarea[name="answer"] {
+    background-color: #121212 !important;
+    color: #ffffff !important;
+    caret-color: white; /* Cursor visibility */
+}
+
+/* 2. Textarea Placeholder Fix */
+[data-theme="dark"] textarea::placeholder,
+[data-bs-theme="dark"] textarea::placeholder {
+    color: #888 !important;
+}
+
+/* 3. Labels visibility in Dashboard forms */
+[data-theme="dark"] label,
+[data-bs-theme="dark"] label,
+[data-theme="dark"] .form-label,
+[data-bs-theme="dark"] .form-label {
+    color: #ffffff !important;
+    opacity: 0.9;
+}
+
+/* 4. Dropdown (Category/Difficulty) Options Fix */
+[data-theme="dark"] select option,
+[data-bs-theme="dark"] select option {
+    background-color: #1e1e1e;
+    color: #ffffff;
+}
+
+/* 5. Fixed spacing for Table rows in Queries */
+.table td, .table th {
+    vertical-align: middle;
+}
+
+.pagination .page-link {
+    transition: all 0.3s ease;
+    font-weight: 600;
+}
+
+.pagination .page-link:hover {
+    background: var(--primary-blue) !important;
+    color: white !important;
+    transform: translateY(-2px);
 }
