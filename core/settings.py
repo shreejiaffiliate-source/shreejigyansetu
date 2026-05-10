@@ -7,11 +7,11 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = "django-insecure-y4z+pv#*#p9rg&(@*qaopp_4$s5^j02&_)pa(p-_ui+5&gl3&v"
 
 DEBUG = True
-ALLOWED_HOSTS = ["www.gyansetu.shreejifintech.com"]
+ALLOWED_HOSTS = ["*", "www.gyansetu.shreejifintech.com"]
 
-# CSRF Trusted Origins (Login/Post form fix karne ke liye)
 CSRF_TRUSTED_ORIGINS = [
-    'https://www.gyansetu.shreejifintech.com',
+    "https://www.gyansetu.shreejifintech.com",
+    "https://gyansetu.shreejifintech.com"
 ]
 
 INSTALLED_APPS = [
@@ -34,7 +34,7 @@ INSTALLED_APPS = [
     'allauth.socialaccount.providers.google',
 ]
 
-SITE_ID = 4
+SITE_ID = 2
 
 AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend',
@@ -169,8 +169,8 @@ SOCIALACCOUNT_PROVIDERS = {
 }
 
 # --- Security ---
-SESSION_COOKIE_SECURE = True
-CSRF_COOKIE_SECURE = True
+SESSION_COOKIE_SECURE = False
+CSRF_COOKIE_SECURE = False
 SESSION_COOKIE_HTTPONLY = True
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 

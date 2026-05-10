@@ -1205,10 +1205,11 @@ def api_register(request):
     username = data.get('username', '').strip()
     email = data.get('email', '').lower().strip() # Email ko hamesha lower aur clean karo
     password = data.get('password')
-    user_type = data.get('user_type') or data.get('userType') or 'Student'
+    user_type = data.get('user_type', 'Student')
+
     # ✅ 1. NAYA LOGIC: Yahan hum Flutter se aane wala First Name aur Last Name pakdenge
-    first_name = (data.get('first_name') or data.get('firstName') or '').strip()
-    last_name = (data.get('last_name') or data.get('lastName') or '').strip()
+    first_name = data.get('first_name', '').strip()
+    last_name = data.get('last_name', '').strip()
 
     # STRICT EMAIL VALIDATION (Server Side)
     email_regex = r'^[\w\-\.]+@([\w\-]+\.)+[a-zA-Z]{3,}$'
@@ -1248,14 +1249,6 @@ def api_register(request):
         profile.email_verification_token = otp
         profile.is_email_verified = False
         profile.auth_provider = 'email'
-
-        if user_type == 'Teacher':
-            profile.qualification = data.get('qualification', '')
-            profile.experience_years = data.get('experience_years') or data.get('experience') or 0
-            profile.is_approved = False
-        else:
-            profile.is_approved = True
-            
         profile.save()
 
         # 7. Send Verification Email

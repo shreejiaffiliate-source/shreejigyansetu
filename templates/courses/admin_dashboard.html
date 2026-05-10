@@ -19,7 +19,7 @@
     <div class="card border-0 shadow-sm mb-4" style="background: rgba(255, 193, 7, 0.05); border-left: 5px solid #ffc107; border-radius: 15px;">
       <div class="card-body p-4">
         <h6 class="fw-bold text-warning mb-3 uppercase small"><i class="fas fa-clock me-2"></i>Action Required: New Registrations</h6>
-        <div class="table-responsive">
+        <div class="table-responsive" style="overflow: visible;">
           <table class="table table-borderless align-middle mb-0">
             <thead class="text-muted small text-uppercase">
               <tr>
@@ -85,7 +85,7 @@
         <a href="{% url 'all_instructors' %}" class="btn btn-sm btn-outline-primary rounded-pill px-3">View All <i class="fas fa-arrow-right ms-1" style="font-size: 0.8rem;"></i></a>
       </div>
     </div>
-    <div class="table-responsive">
+    <div class="table-responsive" style="overflow: visible;">
   <table class="table table-hover align-middle mb-0">
     <thead class="bg-light">
       <tr style="color: var(--text-muted-adaptive); font-size: 0.75rem; text-transform: uppercase;">
@@ -144,7 +144,7 @@
         <a href="{% url 'all_inquiries' %}" class="btn btn-sm btn-outline-primary rounded-pill px-3">View All</a>
       </div>
     </div>
-    <div class="table-responsive">
+    <div class="table-responsive" style="overflow: visible;">
       <table class="table table-hover align-middle mb-0">
         <thead class="bg-light small text-uppercase">
           <tr>
@@ -192,7 +192,7 @@
         <a href="{% url 'all_platform_courses' %}" class="btn btn-sm btn-outline-primary rounded-pill px-3">View All <i class="fas fa-arrow-right ms-1" style="font-size: 0.8rem;"></i></a>
       </div>
     </div>
-    <div class="table-responsive">
+    <div class="table-responsive" style="overflow: visible;">
       <table class="table table-hover align-middle mb-0">
         <thead class="bg-light">
           <tr class="text-muted small text-uppercase">
@@ -204,7 +204,7 @@
         </thead>
         <tbody>
           {% for course in all_courses|slice:':5' %}
-            <tr>
+            <tr class="course-row">
               <td class="ps-4">
                 <div class="fw-bold" style="color: var(--text-dark);">{{ course.title }}</div>
                 <small class="text-muted">{{ course.master_category }}</small>
@@ -214,14 +214,14 @@
               </td>
               <td>{{ course.num_students }}</td>
               <td class="text-end pe-4">
-                <div class="dropdown">
+                <div class="dropdown course-dropdown" style="position: relative; z-index: 9999;">
                   <button class="btn btn-sm btn-outline-secondary dropdown-toggle rounded-pill" data-bs-toggle="dropdown">Manage</button>
-                  <ul class="dropdown-menu shadow border-0">
+                  <ul class="dropdown-menu shadow border-0 show-on-top">
                     <li>
                       <a class="dropdown-item" href="{% url 'course_detail_edit' course.slug %}">Edit Content</a>
                     </li>
                     <li>
-                      <a class="dropdown-item text-danger" href="#">Delete Course</a>
+                      <a class="dropdown-item text-danger" href="{% url 'delete_course' course.slug %}">Delete Course</a>
                     </li>
                   </ul>
                 </div>
@@ -232,4 +232,63 @@
       </table>
     </div>
   </div>
+
+<style>
+  .table-responsive {
+    overflow: visible !important;
+  }
+
+  .course-row {
+    position: relative;
+    z-index: 1;
+  }
+
+  .course-row.dropdown-open {
+    z-index: 99999 !important;
+  }
+
+  .course-dropdown .dropdown-menu {
+    z-index: 100000 !important;
+  }
+  
+   .table-responsive {
+    overflow: visible !important;
+  }
+
+  .course-row {
+    position: relative;
+  }
+
+  .course-dropdown {
+    position: relative;
+  }
+
+  .course-dropdown .dropdown-menu {
+    min-width: 190px;
+    z-index: 999999 !important;
+    background: #ffffff !important;
+    opacity: 1 !important;
+    right: 70px !important;
+    top: 0 !important;
+    border-radius: 10px;
+  }
+
+  .course-dropdown .dropdown-menu .dropdown-item {
+    background: #ffffff !important;
+    opacity: 1 !important;
+  }
+</style>
+
+<script>
+  document.querySelectorAll('.course-dropdown').forEach(function (dropdown) {
+    dropdown.addEventListener('show.bs.dropdown', function () {
+      document.querySelectorAll('.course-row').forEach(row => row.classList.remove('dropdown-open'))
+      dropdown.closest('.course-row').classList.add('dropdown-open')
+    })
+
+    dropdown.addEventListener('hide.bs.dropdown', function () {
+      dropdown.closest('.course-row').classList.remove('dropdown-open')
+    })
+  })
+</script>
 {% endblock %}
