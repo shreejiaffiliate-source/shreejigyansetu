@@ -25,7 +25,11 @@
           <span class="badge rounded-pill border" style="background: var(--bg-light); color: var(--text-dark);">
             {{ all_courses.paginator.count }} Total
           </span>
-          <a href="{% url 'upload_course' %}" class="btn btn-sm btn-outline-primary rounded-pill px-3"><i class="fas fa-plus me-1"></i> Add New</a>
+          {% comment %}
+            <a href="{% url 'upload_course' %}" class="btn btn-sm btn-outline-primary rounded-pill px-3">
+                <i class="fas fa-plus me-1"></i> Add New
+            </a>
+            {% endcomment %}
         </div>
       </div>
 
@@ -62,7 +66,7 @@
                       <li><a class="dropdown-item py-2" style="color: var(--text-dark);" href="{% url 'course_detail_edit' course.slug %}"><i class="fas fa-edit me-2 text-primary"></i>Edit Content</a></li>
                       <li><a class="dropdown-item py-2" style="color: var(--text-dark);" href="{% url 'manage_curriculum' course.slug %}"><i class="fas fa-list me-2 text-success"></i>Curriculum</a></li>
                       <li><hr class="dropdown-divider" style="background-color: var(--border-color);"></li>
-                      <li><a class="dropdown-item py-2 text-danger" href="#"><i class="fas fa-trash-alt me-2"></i>Delete Course</a></li>
+                      <li><a class="dropdown-item py-2 text-danger" href="{% url 'delete_course' course.slug %}"><i class="fas fa-trash-alt me-2"></i>Delete Course</a></li>
                     </ul>
                   </div>
                 </td>

@@ -1,13 +1,17 @@
 import os
 from pathlib import Path
 
+PASSWORD = os.getenv("DB_PASSWORD")
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # ⚠️ WARNING: Ye Django ki key hai, ise change mat karna (Google wali niche hai)
 SECRET_KEY = "django-insecure-y4z+pv#*#p9rg&(@*qaopp_4$s5^j02&_)pa(p-_ui+5&gl3&v"
 
 DEBUG = True
-ALLOWED_HOSTS = ["*", "www.gyansetu.shreejifintech.com"]
+
+ALLOWED_HOSTS = [
+    "www.gyansetu.shreejifintech.com", '*'
+]
 
 CSRF_TRUSTED_ORIGINS = [
     "https://www.gyansetu.shreejifintech.com",
@@ -34,7 +38,7 @@ INSTALLED_APPS = [
     'allauth.socialaccount.providers.google',
 ]
 
-SITE_ID = 2
+SITE_ID = 4
 
 AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend',
@@ -116,11 +120,12 @@ DATETIME_FORMAT = "d M Y, P"
 USE_L10N = False
 
 # --- Static & Media ---
-STATIC_URL = "static/"
-STATICFILES_DIRS = [os.path.join(BASE_DIR / "static")]
-STATIC_ROOT = os.path.join(BASE_DIR / "staticfiles")
+STATIC_URL = "/static/"
+STATICFILES_DIRS = [BASE_DIR / "static"]
+STATIC_ROOT = BASE_DIR / "staticfiles"
+
 MEDIA_URL = '/media/'
-MEDIA_ROOT = os.path.join(BASE_DIR / 'media')
+MEDIA_ROOT = BASE_DIR / "media"
 
 # --- Auth Settings ---
 AUTH_USER_MODEL = 'users.User'

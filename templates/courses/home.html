@@ -12,7 +12,9 @@
     <div class="carousel-inner shadow-sm">
       {% for slide in slides %}
         <div class="carousel-item {% if forloop.first %}active{% endif %}">
-          <a href="{{ slide.link }}"><img src="{{ slide.image.url }}" class="d-block w-100" alt="{{ slide.title }}" style="max-height: 450px; object-fit: contain;" /></a>
+          <a href="{{ slide.link|default:'#' }}">
+            <img src="{{ slide.image.url }}" class="d-block w-100" alt="{{ slide.title }}" style="max-height: 450px; object-fit: cover;" />
+          </a>
         </div>
       {% empty %}
         <div class="carousel-item active">

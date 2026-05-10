@@ -126,7 +126,7 @@ urlpatterns = [
     path('api/lessons/<int:lesson_id>/update-progress/', update_lesson_progress, name='api_update_progress'),
     path('api/profile/update-fcm/', api_views.UpdateFCMTokenView.as_view(), name='api_update_fcm'),
 
-    
+    path('admin-console/course/<slug:slug>/delete/', views.delete_course, name='delete_course'),
 
     path('api/', api_views.ApiRoot.as_view(), name='api_root'),
     path("create-upi-collect/", views.create_upi_collect),
@@ -136,7 +136,8 @@ urlpatterns = [
     # Payment
     path('verify-payment/', verify_payment, name='verify_payment'),
     
-] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+]
 
 if settings.DEBUG:
-    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATICFILES_DIRS[0])

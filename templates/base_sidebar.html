@@ -180,19 +180,7 @@
 {% comment %} {% block content %} {% endcomment %}
 
 {% block content %}
-  <div class="django-messages-container">
-    {% if messages %}
-      {% for message in messages %}
-        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
-          <div class="d-flex align-items-center">
-            <i class="fas {% if message.tags == 'success' %}fa-check-circle{% else %}fa-exclamation-circle{% endif %} me-2"></i>
-            <span>{{ message }}</span>
-          </div>
-          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-      {% endfor %}
-    {% endif %}
-  </div>
+  
   <div class="dashboard-wrapper">
     <nav class="sidebar shadow" id="sidebar">
       <div class="sidebar-header">
@@ -267,8 +255,18 @@
     </nav>
 
     <main class="main-content" id="main-content">
-      {% block dashboard_content %}
+      {% if messages %}
+        <div class="mb-3">
+          {% for message in messages %}
+            <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %} alert-dismissible fade show rounded-3" role="alert">
+              {{ message }}
+              <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
 
+      {% block dashboard_content %}
       {% endblock %}
     </main>
   </div>

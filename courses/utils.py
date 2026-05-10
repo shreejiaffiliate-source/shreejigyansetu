@@ -62,11 +62,14 @@ def send_push_notification(fcm_token, title, body, lesson_id, data=None):
         print(f'✅ Firebase Success: {response}')
         return True
 
-    except messaging.ApiCallError as e:
-            # Agar token mil hi nahi raha (Entity not found)
-            if "not-found" in str(e).lower() or "404" in str(e):
-                print(f"⚠️ Token expire ho gaya hai! User ko naya login karna padega. Error: {e}")
-                # Optional: Database se ye galat token hata do
-            else:
-                print(f"❌ Firebase API Error: {e}")
-            return False
+    except Exception as e:
+        if "not-found" in str(e).lower() or "404" in str(e) or "requested entity was not found" in str(e).lower():
+            print(f"⚠️ Invalid/Expired FCM token: {e}")
+
+            # Optional: yaha DB se token null bhi kar sakte ho
+            # FCMDevice.objects.filter(token=fcm_token).delete()
+
+        else:
+            print(f"❌ Firebase Error: {e}")
+
+        return False

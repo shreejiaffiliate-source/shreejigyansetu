@@ -99,7 +99,7 @@ class Course(models.Model):
 class Carousel(models.Model):
     title = models.CharField(max_length=150)
     image = models.ImageField(upload_to='carousels/')
-    link = models.URLField(blank=True, help_text="Link to a course or page")
+    link = models.CharField(max_length=500, blank=True, help_text="Use relative link like /course/python-course/")
     order = models.PositiveIntegerField(default=0)
     is_active = models.BooleanField(default=True)
 
@@ -407,3 +407,20 @@ def save_user_profile(sender, instance, **kwargs):
         instance.profile.save()
 
     
+class PendingRegistration(models.Model):
+    username = models.CharField(max_length=150)
+    email = models.EmailField(unique=True)
+    password = models.CharField(max_length=255)
+
+    first_name = models.CharField(max_length=150, blank=True)
+    last_name = models.CharField(max_length=150, blank=True)
+
+    user_type = models.CharField(max_length=20, default='Student')
+    qualification = models.CharField(max_length=255, blank=True, null=True)
+    experience_years = models.PositiveIntegerField(default=0)
+
+    otp = models.CharField(max_length=6)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.email

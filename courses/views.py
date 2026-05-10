@@ -21,6 +21,7 @@ import string
 from django.utils.crypto import get_random_string
 from rest_framework.authtoken.models import Token
 from courses.models import Profile
+from .models import PendingRegistration
 
 # Use get_user_model for compatibility with your custom user setup
 User = get_user_model()
@@ -148,103 +149,85 @@ def register(request):
     if request.method == 'POST':
         form = RegistrationForm(request.POST)
         if form.is_valid():
-            try:
-                email = form.cleaned_data.get('email')
-                username = form.cleaned_data.get('username')
+            email = form.cleaned_data.get('email')
 
-                # 1. CLEANUP: Inactive duplicate ko hatao
-                User.objects.filter(email=email, is_active=False).delete()
+            if User.objects.filter(email=email).exists():
+                messages.error(request, "This email is already registered.")
+                return render(request, 'registration/register.html', {'form': form})
 
-                # Check if active user exists (prevent crash)
-                if User.objects.filter(email=email).exists():
-                    messages.error(request, "This email is already registered and active.")
-                    return render(request, 'registration/register.html', {'form': form})
+            otp = generate_otp()
 
-                user = form.save(commit=False)
-                user.set_password(form.cleaned_data['password'])
-                user.is_active = False  
-                user.save()
-                
-                # 2. Profile setup (Using get_or_create to prevent crash)
-                profile, created = Profile.objects.get_or_create(user=user)
-                
-                selected_user_type = form.cleaned_data.get('user_type', 'Student')
-                profile.user_type = selected_user_type
-                profile.is_email_verified = False
-                
-                # OTP Generation
-                otp = generate_otp() 
-                profile.email_verification_token = otp
+            request.session['pending_user'] = {
+                'first_name': form.cleaned_data['first_name'],
+                'last_name': form.cleaned_data['last_name'],
+                'username': form.cleaned_data['username'],
+                'email': email,
+                'password': form.cleaned_data['password'],
+                'user_type': form.cleaned_data['user_type'],
+                'qualification': form.cleaned_data.get('qualification'),
+                'experience_years': form.cleaned_data.get('experience_years'),
+                'otp': otp,
+            }
 
-                if selected_user_type == 'Teacher':
-                    profile.qualification = form.cleaned_data.get('qualification')
-                    profile.experience_years = form.cleaned_data.get('experience_years')
-                    profile.is_approved = False
-                else:
-                    profile.is_approved = True 
-                
-                profile.save()
+            send_mail(
+                subject='Verify Your Email - Shreeji GyanSetu',
+                message=f'Your verification code is: {otp}',
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[email],
+                fail_silently=False,
+            )
 
-                # 3. Send OTP Mail
-                try:
-                    send_mail(
-                        subject='Verify Your Email - Shreeji GyanSetu',
-                        message=f'Hi {user.first_name}, your verification code is: {otp}',
-                        from_email=settings.DEFAULT_FROM_EMAIL,
-                        recipient_list=[user.email],
-                        fail_silently=False,
-                    )
-                    request.session['verification_email'] = user.email
-                    messages.success(request, "An OTP has been sent to your email.")
-                    return redirect('verify_email_web')
-                except Exception as e:
-                    print(f"Mail Error: {e}")
-                    user.delete() # Mail fail toh user delete taaki retry ho sake
-                    messages.error(request, "Failed to send verification email. Try again.")
-            
-            except Exception as e:
-                print(f"🚨 Register Crash: {e}") # Ye terminal mein error dikhayega
-                messages.error(request, f"Internal Server Error: {e}")
-                
+            return redirect('verify_email_web')
     else:
         form = RegistrationForm()
+
     return render(request, 'registration/register.html', {'form': form})
 
 def verify_email_web(request):
-    email = request.session.get('verification_email')
-    if not email:
+    pending_user = request.session.get('pending_user')
+
+    if not pending_user:
         return redirect('register')
 
     if request.method == 'POST':
         otp = request.POST.get('otp')
-        user = User.objects.filter(email=email, is_active=False).first()
 
-        if user and user.profile.email_verification_token == otp:
-            user.is_active = True
-            user.save()
+        if pending_user.get('otp') == otp:
+            user = User.objects.create_user(
+                username=pending_user['username'],
+                email=pending_user['email'],
+                password=pending_user['password'],
+                first_name=pending_user['first_name'],
+                last_name=pending_user['last_name'],
+            )
 
             profile = user.profile
-            user.profile.is_email_verified = True
-            user.profile.email_verification_token = None
-            user.profile.save()
-            login(request, user, backend='django.contrib.auth.backends.ModelBackend') # Auto login after verify
+            profile.user_type = pending_user['user_type']
+            profile.is_email_verified = True
 
-            # Session se email saaf karo
-            if 'verification_email' in request.session:
-                del request.session['verification_email']
+            if profile.user_type == 'Teacher':
+                profile.qualification = pending_user.get('qualification')
+                profile.experience_years = pending_user.get('experience_years') or 0
+                profile.is_approved = False
+            else:
+                profile.is_approved = True
 
-            messages.success(request, "Email verified successfully!")
-            
-            # Redirect logic
+            profile.save()
+
+            del request.session['pending_user']
+
+            login(request, user, backend='django.contrib.auth.backends.ModelBackend')
+
             if profile.user_type == 'Teacher':
                 return render(request, 'registration/waiting_approval.html', {'user': user})
 
-
             return redirect('login_success')
-        else:
-            messages.error(request, "Invalid OTP!")
-            
-    return render(request, 'registration/verify_otp.html', {'email': email})
+
+        messages.error(request, "Invalid OTP!")
+
+    return render(request, 'registration/verify_otp.html', {
+        'email': pending_user.get('email')
+    })
 
 def live_classes(request):
     return render(request, 'courses/live_classes.html', {
@@ -674,9 +657,11 @@ def admin_dashboard(request):
     # - ARE active (meaning they haven't been manually deactivated/suspended)
     # - Have 0 courses (indicating they are new)
     pending_teachers = User.objects.filter(
-        profile__user_type='Teacher', 
+        profile__user_type='Teacher',
         profile__is_approved=False,
-        is_active=True  # <--- THIS IS THE FIX
+        profile__is_rejected=False,
+        profile__is_email_verified=True,
+        is_active=True
     ).annotate(course_count=Count('taught_courses')).filter(course_count=0)[:5]
     
     # 4. Logic for Management Tables
@@ -746,36 +731,40 @@ def approve_teacher(request, teacher_id):
 
 @login_required
 def reject_teacher(request, teacher_id):
-    # Security Check
     is_admin = False
     if hasattr(request.user, 'profile'):
         is_admin = request.user.profile.user_type == 'Admin'
 
     if not (request.user.is_superuser or is_admin):
         return HttpResponseForbidden("Access Denied")
-    
-    # Get the teacher user
-    teacher_user = get_object_or_404(User, id=teacher_id)
-    teacher_email = teacher_user.email
-    teacher_name = teacher_user.get_full_name()
 
-    # Send Rejection Email
+    teacher_user = get_object_or_404(User, id=teacher_id)
+    profile = teacher_user.profile
+
+    teacher_email = teacher_user.email
+    teacher_name = teacher_user.get_full_name() or teacher_user.username
+
+    profile.is_approved = False
+    profile.is_rejected = True
+    profile.save()
+
+    teacher_user.is_active = False
+    teacher_user.save()
+
+    Course.objects.filter(teacher=teacher_user).update(is_active=False)
 
     try:
         send_mail(
-            subject="Update regarding your Instructor Application - Shreeji GyanSetu",
-            message=f'Hi {teacher_name},\n\nThank you for your interest in Shreeji GyanSetu. After reviewing your profile, we regret to inform you that we cannot approve your teacher account at this time as it does not meet our current requirements.\n\nBest regards,\nAdmin Team',
+            subject="Instructor Application Update - Shreeji GyanSetu",
+            message=f"Hi {teacher_name},\n\nYour instructor application has not been approved at this time. Please contact support if you need more information.\n\nBest regards,\nAdmin Team",
             from_email=settings.DEFAULT_FROM_EMAIL,
             recipient_list=[teacher_email],
             fail_silently=True,
         )
     except Exception as e:
-        print(f"Error sending email: {e}")
+        print(f"Error sending rejection email: {e}")
 
-    # Delete the user (and their profile via cascade)
-    teacher_user.delete()
-
-    messages.warning(request, f"Application for {teacher_name} has been rejected and the account has been removed.")
+    messages.warning(request, f"Application for {teacher_name} has been rejected.")
     return redirect('admin_dashboard')
 
 @login_required
@@ -808,7 +797,10 @@ def all_instructors_view(request):
         return HttpResponseForbidden("Unauthorized")
     
     # 1. Get all teachers
-    instructor_list = User.objects.filter(profile__user_type='Teacher').order_by('-date_joined')
+    instructor_list = User.objects.filter(
+        profile__user_type='Teacher',
+        profile__is_email_verified=True
+    ).order_by('-date_joined')
     
     # 2. Paginator Logic (10 teachers per page)
     paginator = Paginator(instructor_list, 10)
@@ -1113,30 +1105,35 @@ def edit_profile_sb(request):
     }
     return render(request, 'courses/edit_profile_sb.html', context)
 
-@api_view(['POST'])
+@api_view(['GET', 'POST'])
 @permission_classes([IsAuthenticated])
 def update_lesson_progress(request, lesson_id):
     try:
         lesson = Lesson.objects.get(id=lesson_id)
-        # Get or create progress record for this user
+
         progress, created = UserLessonProgress.objects.get_or_create(
-            user=request.user, 
+            user=request.user,
             lesson=lesson
         )
 
+        if request.method == 'GET':
+            return Response({
+                'last_position': progress.last_position,
+                'is_completed': progress.is_completed
+            }, status=200)
+
         last_position = request.data.get('last_position')
-        
+
         if last_position is not None:
-            # 2. Update the model field
             progress.last_position = float(last_position)
-            # 3. Save to database
             progress.save()
-        
-        # Update the position sent from Flutter
+
         return Response({
             'status': 'progress updated',
+            'last_position': progress.last_position,
             'saved_position': progress.last_position
-        })
+        }, status=200)
+
     except Lesson.DoesNotExist:
         return Response({'error': 'Lesson not found'}, status=404)
     except Exception as e:
@@ -1203,68 +1200,50 @@ import re # Sabse upar import karein
 def api_register(request):
     data = request.data
     username = data.get('username', '').strip()
-    email = data.get('email', '').lower().strip() # Email ko hamesha lower aur clean karo
+    email = data.get('email', '').lower().strip()
     password = data.get('password')
-    user_type = data.get('user_type', 'Student')
+    user_type = data.get('user_type') or data.get('userType') or 'Student'
+    first_name = (data.get('first_name') or data.get('firstName') or '').strip()
+    last_name = (data.get('last_name') or data.get('lastName') or '').strip()
 
-    # ✅ 1. NAYA LOGIC: Yahan hum Flutter se aane wala First Name aur Last Name pakdenge
-    first_name = data.get('first_name', '').strip()
-    last_name = data.get('last_name', '').strip()
-
-    # STRICT EMAIL VALIDATION (Server Side)
     email_regex = r'^[\w\-\.]+@([\w\-]+\.)+[a-zA-Z]{3,}$'
-        
     if not re.match(email_regex, email):
-        return Response({
-            "error": "Invalid email format! Please use an email ending with .com, .net, or .org"
-        }, status=400)
+        return Response({"error": "Invalid email format! Please use a valid email."}, status=400)
 
-    # 2. Duplicate Username Check
     if User.objects.filter(username=username).exists():
         return Response({"error": "This username is already taken. Please choose another one."}, status=400)
 
-    # 3. Duplicate Email Check
     if User.objects.filter(email=email).exists():
         return Response({"error": "This email is already registered. Please login."}, status=400)
 
-    # 4. Cleanup old inactive users (Same email)
-    User.objects.filter(email=email, is_active=False).delete()
-
     try:
-        # ✅ 2. YAHAN SAVE HOGA: create_user ke andar first_name aur last_name bhej diya
-        user = User.objects.create_user(
-            username=username, 
-            email=email, 
-            password=password,
-            first_name=first_name,  # 👈 YE ZAROORI HAI
-            last_name=last_name     # 👈 YE BHI ZAROORI HAI
-        )
-        user.is_active = False 
-        user.save()
-
-        # 6. Update Profile with OTP
         otp = generate_otp()
-        profile = user.profile
-        profile.user_type = user_type
-        profile.email_verification_token = otp
-        profile.is_email_verified = False
-        profile.auth_provider = 'email'
-        profile.save()
 
-        # 7. Send Verification Email
+        PendingRegistration.objects.filter(email=email).delete()
+
+        PendingRegistration.objects.create(
+            username=username,
+            email=email,
+            password=password,
+            first_name=first_name,
+            last_name=last_name,
+            user_type=user_type,
+            qualification=data.get('qualification', ''),
+            experience_years=data.get('experience_years') or data.get('experience') or 0,
+            otp=otp
+        )
+
         send_mail(
             subject='Verify your email - Shreeji GyanSetu',
-            message=f'Hi {first_name} {last_name}, your verification code is: {otp}', # Email mein bhi naam aayega!
+            message=f'Hi {first_name} {last_name}, your verification code is: {otp}',
             from_email=settings.DEFAULT_FROM_EMAIL,
             recipient_list=[email],
             fail_silently=False,
         )
+
         return Response({"message": "OTP sent to your email successfully!"}, status=201)
 
     except Exception as e:
-        # Agar email bhejane mein error aaye, toh user delete kar do 
-        if 'user' in locals():
-            user.delete()
         return Response({"error": f"Failed to send email: {str(e)}"}, status=500)
     
 # --- API: VERIFY OTP ---
@@ -1305,61 +1284,70 @@ def api_verify_email(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def api_google_login(request):
-    email = request.data.get('email', '').lower().strip() # ✅ Email ko hamesha lower case aur trim karo
+    email = request.data.get('email', '').lower().strip()
     google_id = request.data.get('google_id')
-    first_name = request.data.get('first_name', '')
-    last_name = request.data.get('last_name', '')
+    first_name = request.data.get('first_name', '').strip()
+    last_name = request.data.get('last_name', '').strip()
 
     if not email:
         return Response({"error": "Email is required from Google"}, status=400)
 
-    # 1. PEHLE EMAIL SE DHUNDHO (Unique check)
     user = User.objects.filter(email__iexact=email).first()
 
     if user:
-        # ✅ CASE: User mil gaya (Linking purana account)
-        # Isse ID 59 wala account hi use hoga
         profile, created = Profile.objects.get_or_create(user=user)
-        
-        # Profile update karo agar pehle se google link nahi hai
-        if not profile.google_id:
-            profile.google_id = google_id
-            profile.auth_provider = 'google'
-            profile.is_email_verified = True
-            profile.save()
 
-        # Inactive user (jisne OTP verify nahi kiya) ko active kar do
-        if not user.is_active:
-            user.is_active = True
-            user.save()
-            
+        if not user.first_name and first_name:
+            user.first_name = first_name
+
+        if not user.last_name and last_name:
+            user.last_name = last_name
+
+        user.is_active = True
+        user.save()
+
+        profile.google_id = google_id
+        profile.auth_provider = 'google'
+        profile.is_email_verified = True
+        profile.save()
+
         print(f"✅ Linked Google to existing user: {user.username}")
 
     else:
-        # ❌ CASE: Bilkul naya email hai, toh hi naya account banao
-        # Username generation
         base_username = email.split('@')[0]
-        username = f"{base_username}_{get_random_string(5)}"
-        
-        user = User.objects.create_user(username=username, email=email)
-        user.first_name = first_name
-        user.last_name = last_name
-        user.is_active = True 
+        username = base_username
+
+        counter = 1
+        while User.objects.filter(username=username).exists():
+            username = f"{base_username}_{counter}"
+            counter += 1
+
+        user = User.objects.create_user(
+            username=username,
+            email=email,
+            first_name=first_name,
+            last_name=last_name,
+        )
+        user.is_active = True
         user.save()
 
         profile = user.profile
+        profile.user_type = 'Student'
+        profile.is_approved = True
         profile.is_email_verified = True
         profile.google_id = google_id
         profile.auth_provider = 'google'
         profile.save()
+
         print(f"✅ Created new Google user: {user.username}")
 
-    # Common: Token generate karo
     token, _ = Token.objects.get_or_create(user=user)
-    
+
     return Response({
         "token": token.key,
-        "username": user.username, 
+        "username": user.username,
+        "first_name": user.first_name,
+        "last_name": user.last_name,
         "user_type": user.profile.user_type,
         "message": "Google login successful"
     }, status=200) 
@@ -1640,27 +1628,29 @@ def login_view(request):
     if request.method == 'POST':
         u_name = request.POST.get('username')
         p_word = request.POST.get('password')
-        
-        # Authenticate check
-        user = authenticate(username=u_name, password=p_word)
-        
-        if user is not None:
-            if user.is_active:
-                auth_login(request, user)
-                
-                # 🔥 YAHAN DALO YE LOGIC 🔥
-                # Isse purane aur naye sabhi users ka token ensure ho jayega
-                token, created = Token.objects.get_or_create(user=user)
-                if created:
-                    print(f"✅ DEBUG: New Token generated for {u_name}")
-                
-                print(f"✅ DEBUG: Login Success for {u_name}")
-                return redirect('login_success')
-            else:
-                messages.error(request, "Your account is not active. Please verify your email.")
-        else:
-            messages.error(request, "Invalid username or password.")
-            
+
+        user_obj = User.objects.filter(username__iexact=u_name).first()
+
+        if user_obj:
+            if not user_obj.check_password(p_word):
+                messages.error(request, "Invalid username or password.")
+                return redirect('login')
+
+            if hasattr(user_obj, 'profile') and not user_obj.profile.is_email_verified:
+                messages.error(request, "Your email address is not verified yet. Please verify your email first.")
+                return redirect('login')
+
+            if not user_obj.is_active:
+                messages.error(request, "Your account has been deactivated by the administrator. Please contact support.")
+                return redirect('login')
+
+            auth_login(request, user_obj, backend='django.contrib.auth.backends.ModelBackend')
+            Token.objects.get_or_create(user=user_obj)
+            return redirect('login_success')
+
+        messages.error(request, "Invalid username or password.")
+        return redirect('login')
+
     return render(request, 'registration/login.html')
 
 @api_view(['POST'])
@@ -1676,3 +1666,19 @@ def save_fcm_token(request):
     profile.save()
 
     return Response({"message": "FCM token saved successfully"})
+
+@login_required
+def delete_course(request, slug):
+    if not (request.user.is_superuser or request.user.profile.user_type == 'Admin'):
+        return HttpResponseForbidden("Unauthorized")
+
+    course = get_object_or_404(Course, slug=slug)
+
+    if request.method == 'POST':
+        course.delete()
+        messages.success(request, "Course deleted successfully!")
+        return redirect('all_platform_courses')
+
+    return render(request, 'courses/delete_course_confirm.html', {
+        'course': course
+    })
